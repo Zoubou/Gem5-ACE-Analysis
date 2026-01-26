@@ -51,6 +51,7 @@
 #include "base/trace.hh"
 #include "cpu/o3/comm.hh"
 #include "cpu/o3/regfile.hh"
+#include "debug/ACEAnalysis.hh"
 #include "debug/FreeList.hh"
 
 namespace gem5
@@ -80,7 +81,11 @@ class SimpleFreeList
     SimpleFreeList() {};
 
     /** Add a physical register to the free list */
-    void addReg(PhysRegIdPtr reg) { freeRegs.push(reg); }
+    void addReg(PhysRegIdPtr reg) {
+        freeRegs.push(reg);
+        DPRINTF(ACEAnalysis, "Register %d added to freelist!\n",
+            reg->index());
+    }
 
     /** Add physical registers to the free list */
     template<class InputIt>
@@ -97,7 +102,12 @@ class SimpleFreeList
         assert(!freeRegs.empty());
         PhysRegIdPtr free_reg = freeRegs.front();
         freeRegs.pop();
+
+        DPRINTF(ACEAnalysis, "Register %d removed from freelist!\n",
+            free_reg->index());
+
         return free_reg;
+
     }
 
     /** Return the number of free registers on the list. */
