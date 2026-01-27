@@ -51,6 +51,7 @@
 #include "base/intmath.hh"
 #include "base/types.hh"
 #include "debug/InvalidReg.hh"
+#include "sim/cur_tick.hh"
 
 namespace gem5
 {
@@ -434,16 +435,22 @@ class PhysRegId : private RegId
     int numPinnedWritesToComplete;
     bool pinned;
 
+    /*ACE analysis vars here*/
+    bool isACE;
+    Tick lastTick;
+
   public:
     explicit PhysRegId() : RegId(invalidRegClass, -1), flatIdx(-1),
-                           numPinnedWritesToComplete(0)
+                           numPinnedWritesToComplete(0),
+                           isACE(false), lastTick(0)
     {}
 
     /** Scalar PhysRegId constructor. */
     explicit PhysRegId(const RegClass &reg_class, RegIndex _regIdx,
               RegIndex _flatIdx)
         : RegId(reg_class, _regIdx), flatIdx(_flatIdx),
-          numPinnedWritesToComplete(0), pinned(false)
+          numPinnedWritesToComplete(0), pinned(false),
+          isACE(false), lastTick(0)
     {}
 
     /** Visible RegId methods */
@@ -527,6 +534,11 @@ class PhysRegId : private RegId
 
     void decrNumPinnedWritesToComplete() { --numPinnedWritesToComplete; }
     void incrNumPinnedWritesToComplete() { ++numPinnedWritesToComplete; }
+
+    /*ACE analysis public functions*/
+    void setACE(bool val){ isACE = val; }
+    bool getACE() const { return isACE; }
+    Tick getTick() const {return curTick();}
 };
 
 using PhysRegIdPtr = PhysRegId*;
