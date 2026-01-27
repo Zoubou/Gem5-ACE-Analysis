@@ -93,6 +93,8 @@ class SimpleFreeList
     addRegs(InputIt first, InputIt last) {
         std::for_each(first, last, [this](typename InputIt::value_type& reg) {
             freeRegs.push(&reg);
+            DPRINTF(ACEAnalysis, "Register %d added to freelist!\n",
+                reg->index());
         });
     }
 
