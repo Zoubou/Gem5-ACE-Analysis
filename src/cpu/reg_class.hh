@@ -535,7 +535,7 @@ class PhysRegId : private RegId
     void decrNumPinnedWritesToComplete() { --numPinnedWritesToComplete; }
     void incrNumPinnedWritesToComplete() { ++numPinnedWritesToComplete; }
 
-    /*ACE analysis public functions*/
+    /*ACE public functions*/
     void setACE(bool val){ isACE = val; }
     bool getACE() const { return isACE; }
     Tick getTick() const {return curTick();}
