@@ -85,6 +85,10 @@ class SimpleFreeList
         freeRegs.push(reg);
         DPRINTF(ACEAnalysis, "Register %d added to freelist!\n",
             reg->index());
+
+        reg->setTick(curTick());
+        reg->setEventEvict();
+        reg->setACE(false);
     }
 
     /** Add physical registers to the free list */
