@@ -380,9 +380,13 @@ RegClass::operator[](RegIndex idx) const
 // Type matching for gem5::VecRegContainer class
 // This is used in TypedRegClassOps.
 template<typename>
-struct is_vec_reg_container : std::false_type {};
+struct is_vec_reg_container : std::false_type
+{
+    };
 template<std::size_t SIZE>
-struct is_vec_reg_container<gem5::VecRegContainer<SIZE>> : std::true_type {};
+struct is_vec_reg_container<gem5::VecRegContainer<SIZE>> : std::true_type
+{
+    };
 
 template <typename ValueType>
 class TypedRegClassOps : public RegClassOps
@@ -438,11 +442,20 @@ class PhysRegId : private RegId
     /*ACE analysis vars here*/
     bool isACE;
     Tick lastTick;
+    enum Events
+    {
+        idle,
+        fill,
+        write,
+        read,
+        evict
+    };
+    enum Events lastEvent;
 
   public:
     explicit PhysRegId() : RegId(invalidRegClass, -1), flatIdx(-1),
                            numPinnedWritesToComplete(0),
-                           isACE(false), lastTick(0)
+                           lastEvent(idle), isACE(false), lastTick(0)
     {}
 
     /** Scalar PhysRegId constructor. */
@@ -450,7 +463,7 @@ class PhysRegId : private RegId
               RegIndex _flatIdx)
         : RegId(reg_class, _regIdx), flatIdx(_flatIdx),
           numPinnedWritesToComplete(0), pinned(false),
-          isACE(false), lastTick(0)
+          lastEvent(idle), isACE(false), lastTick(0)
     {}
 
     /** Visible RegId methods */
@@ -538,7 +551,17 @@ class PhysRegId : private RegId
     /*ACE public functions*/
     void setACE(bool val){ isACE = val; }
     bool getACE() const { return isACE; }
-    Tick getTick() const {return curTick();}
+
+    void setTick(Tick t) { lastTick = t; }
+    Tick getTick() const { return lastTick; }
+
+    void setEventFill(){ lastEvent = fill; }
+    void setEventWrite(){ lastEvent = write; }
+    void setEventRead(){ lastEvent = read; }
+    void setEventEvict(){ lastEvent = evict; }
+    enum Events getLastEvent() const
+    {
+        return lastEvent; }
 };
 
 using PhysRegIdPtr = PhysRegId*;
