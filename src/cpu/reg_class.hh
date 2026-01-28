@@ -442,6 +442,7 @@ class PhysRegId : private RegId
     /*ACE analysis vars here*/
     bool isACE;
     Tick lastTick;
+    Tick ACETicks;
     enum Events
     {
         idle,
@@ -553,7 +554,17 @@ class PhysRegId : private RegId
     bool getACE() const { return isACE; }
 
     void setTick(Tick t) { lastTick = t; }
-    Tick getTick() const { return lastTick; }
+    Tick
+    getLastTick() const
+    {
+        return lastTick;
+    }
+
+    void
+    addACETicks(Tick t)
+    {
+        ACETicks += t;
+    }
 
     void setEventFill(){ lastEvent = fill; }
     void setEventWrite(){ lastEvent = write; }
