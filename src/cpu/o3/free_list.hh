@@ -105,6 +105,10 @@ class SimpleFreeList
         PhysRegIdPtr free_reg = freeRegs.front();
         freeRegs.pop();
 
+        free_reg->setTick(curTick());
+        free_reg->setEventFill();
+        free_reg->setACE(false);
+
         DPRINTF(ACEAnalysis, "Register %d removed from freelist!\n",
             free_reg->index());
 
