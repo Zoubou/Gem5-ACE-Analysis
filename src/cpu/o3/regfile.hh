@@ -200,6 +200,16 @@ class PhysRegFile
           default:
             panic("Unsupported register class type %d.", type);
         }
+
+        if (phys_reg->getLastEvent() == 'write' ||
+            phys_reg->getLastEvent() == 'read') {
+            Tick duration = curTick() - phys_reg->getLastTick();
+            phys_reg->addACETicks(duration);
+        }
+
+        phys_reg->setTick(curTick());
+        phys_reg->setEventRead();
+        phys_reg->setACE(true);
     }
 
     void
@@ -291,6 +301,10 @@ class PhysRegFile
           default:
             panic("Unsupported register class type %d.", type);
         }
+
+        phys_reg->setTick(curTick());
+        phys_reg->setEventWrite();
+        phys_reg->setACE(false);
     }
 
     void
