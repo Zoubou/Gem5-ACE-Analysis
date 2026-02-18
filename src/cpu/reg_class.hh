@@ -575,6 +575,8 @@ class PhysRegId : private RegId
         return lastEvent; }
 };
 
+Tick TotalACETime;
+Tick TotalBits;
 using PhysRegIdPtr = PhysRegId*;
 
 } // namespace gem5

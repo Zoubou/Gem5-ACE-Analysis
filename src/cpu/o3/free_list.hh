@@ -86,6 +86,9 @@ class SimpleFreeList
         DPRINTF(ACEAnalysis, "Register %d added to freelist!\n",
             reg->index());
 
+        Tick duration = curTick() - reg->getLastTick();
+        TotalBits += duration;
+
         reg->setTick(curTick());
         reg->setEventEvict();
         reg->setACE(false);
@@ -108,6 +111,9 @@ class SimpleFreeList
         assert(!freeRegs.empty());
         PhysRegIdPtr free_reg = freeRegs.front();
         freeRegs.pop();
+
+        Tick duration = curTick() - free_reg->getLastTick();
+        TotalBits += duration;
 
         free_reg->setTick(curTick());
         free_reg->setEventFill();
