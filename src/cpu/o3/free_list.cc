@@ -30,6 +30,7 @@
 #include "cpu/o3/free_list.hh"
 
 #include "base/trace.hh"
+#include "cpu/o3/cpu.hh"
 #include "debug/FreeList.hh"
 
 namespace gem5
@@ -39,11 +40,14 @@ namespace o3
 {
 
 UnifiedFreeList::UnifiedFreeList(const std::string &_my_name,
-                                 PhysRegFile *_regFile)
-    : _name(_my_name), regFile(_regFile)
+                                 PhysRegFile *_regFile, CPU *_cpu)
+    : _name(_my_name), regFile(_regFile), cpu(_cpu)
 {
     DPRINTF(FreeList, "Creating new free list object.\n");
 
+    for (auto &list : freeLists) {
+        list.setStatPtr(&_cpu->cpuStats.totalResidencyTicks);
+    }
     // Have the register file initialize the free list since it knows
     // about its internal organization
     regFile->initFreeList(this);

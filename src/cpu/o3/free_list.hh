@@ -60,6 +60,7 @@ namespace gem5
 namespace o3
 {
 
+class CPU;
 class UnifiedRenameMap;
 
 /**
@@ -76,22 +77,31 @@ class SimpleFreeList
     /** The actual free list */
     std::queue<PhysRegIdPtr> freeRegs;
 
-  public:
+    statistics::Scalar *totalResidencyTicksPtr;
 
-    SimpleFreeList() {};
+  public:
+    SimpleFreeList() : totalResidencyTicksPtr(nullptr){};
+
+    // 2. Add the Setter
+    void
+    setStatPtr(statistics::Scalar *_ptr)
+    {
+        totalResidencyTicksPtr = _ptr;
+    }
 
     /** Add a physical register to the free list */
     void addReg(PhysRegIdPtr reg) {
         freeRegs.push(reg);
-        DPRINTF(ACEAnalysis, "Register %d added to freelist!\n",
-            reg->index());
 
         Tick duration = curTick() - reg->getLastTick();
-        TotalBits += duration;
+        (*totalResidencyTicksPtr) += duration;
 
         reg->setTick(curTick());
         reg->setEventEvict();
         reg->setACE(false);
+
+        // DPRINTF(ACEAnalysis, "Register %d added to
+        // freelist!\n",reg->index());
     }
 
     /** Add physical registers to the free list */
@@ -113,14 +123,14 @@ class SimpleFreeList
         freeRegs.pop();
 
         Tick duration = curTick() - free_reg->getLastTick();
-        TotalBits += duration;
+        (*totalResidencyTicksPtr) += duration;
 
         free_reg->setTick(curTick());
         free_reg->setEventFill();
         free_reg->setACE(false);
 
-        DPRINTF(ACEAnalysis, "Register %d removed from freelist!\n",
-            free_reg->index());
+        // DPRINTF(ACEAnalysis, "Register %d removed from
+        // freelist!\n",free_reg->index());
 
         return free_reg;
 
@@ -162,6 +172,7 @@ class UnifiedFreeList
      * from floating-point physical register indices.
      */
     PhysRegFile *regFile;
+    CPU *cpu;
 
     /*
      * We give UnifiedRenameMap internal access so it can get at the
@@ -179,7 +190,8 @@ class UnifiedFreeList
      *  @param reservedFloatRegs Number of fp registers already
      *                           used by initial mappings.
      */
-    UnifiedFreeList(const std::string &_my_name, PhysRegFile *_regFile);
+    UnifiedFreeList(const std::string &_my_name, PhysRegFile *_regFile,
+                    CPU *_cpu);
 
     /** Gives the name of the freelist. */
     std::string name() const { return _name; };
