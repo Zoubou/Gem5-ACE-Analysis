@@ -454,17 +454,27 @@ class PhysRegId : private RegId
     enum Events lastEvent;
 
   public:
-    explicit PhysRegId() : RegId(invalidRegClass, -1), flatIdx(-1),
-                           numPinnedWritesToComplete(0),
-                           lastEvent(idle), isACE(false), lastTick(0)
+    explicit PhysRegId()
+        : RegId(invalidRegClass, -1),
+          flatIdx(-1),
+          numPinnedWritesToComplete(0),
+          isACE(false),
+          lastTick(0),
+          ACETicks(0),
+          lastEvent(idle)
     {}
 
     /** Scalar PhysRegId constructor. */
     explicit PhysRegId(const RegClass &reg_class, RegIndex _regIdx,
-              RegIndex _flatIdx)
-        : RegId(reg_class, _regIdx), flatIdx(_flatIdx),
-          numPinnedWritesToComplete(0), pinned(false),
-          lastEvent(idle), isACE(false), lastTick(0)
+                       RegIndex _flatIdx)
+        : RegId(reg_class, _regIdx),
+          flatIdx(_flatIdx),
+          numPinnedWritesToComplete(0),
+          pinned(false),
+          isACE(false),
+          lastTick(0),
+          ACETicks(0),
+          lastEvent(idle)
     {}
 
     /** Visible RegId methods */
@@ -575,8 +585,6 @@ class PhysRegId : private RegId
         return lastEvent; }
 };
 
-Tick TotalACETime;
-Tick TotalBits;
 using PhysRegIdPtr = PhysRegId*;
 
 } // namespace gem5
