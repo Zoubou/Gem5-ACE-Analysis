@@ -612,6 +612,10 @@ class CPU : public BaseCPU
         /** Stat for total number of cycles the CPU spends descheduled due to a
          * quiesce operation or waiting for an interrupt. */
         statistics::Scalar quiesceCycles;
+
+        statistics::Scalar totalAceTicks;
+        statistics::Scalar totalResidencyTicks;
+        statistics::Formula AVF;
     } cpuStats;
 
   public:
