@@ -49,6 +49,7 @@
 #include "base/trace.hh"
 #include "cpu/o3/comm.hh"
 #include "cpu/regfile.hh"
+#include "debug/ACEAnalysis.hh"
 #include "debug/IEW.hh"
 
 namespace gem5
@@ -57,6 +58,7 @@ namespace gem5
 namespace o3
 {
 
+class CPU;
 class UnifiedFreeList;
 
 /**
@@ -67,6 +69,12 @@ class PhysRegFile
   private:
 
     using PhysIds = std::vector<PhysRegId>;
+
+    CPU *cpu;
+
+    statistics::Scalar *totalAceTicksPtr;
+    statistics::Scalar *totalResidencyTicksPtr;
+
   public:
     using IdRange = std::pair<PhysIds::iterator,
                               PhysIds::iterator>;
@@ -145,13 +153,10 @@ class PhysRegFile
      * Constructs a physical register file with the specified amount of
      * integer and floating point registers.
      */
-    PhysRegFile(unsigned _numPhysicalIntRegs,
-                unsigned _numPhysicalFloatRegs,
-                unsigned _numPhysicalVecRegs,
-                unsigned _numPhysicalVecPredRegs,
-                unsigned _numPhysicalMatRegs,
-                unsigned _numPhysicalCCRegs,
-                const BaseISA::RegClasses &classes);
+    PhysRegFile(unsigned _numPhysicalIntRegs, unsigned _numPhysicalFloatRegs,
+                unsigned _numPhysicalVecRegs, unsigned _numPhysicalVecPredRegs,
+                unsigned _numPhysicalMatRegs, unsigned _numPhysicalCCRegs,
+                const BaseISA::RegClasses &classes, CPU *_cpu);
 
     /**
      * Destructor to free resources
@@ -174,6 +179,15 @@ class PhysRegFile
     {
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
+
+        Tick duration = curTick() - phys_reg->getLastTick();
+        phys_reg->addACETicks(duration);
+        (*totalAceTicksPtr) += duration;
+        (*totalResidencyTicksPtr) += duration;
+
+        phys_reg->setTick(curTick());
+        phys_reg->setEventRead();
+        phys_reg->setACE(true);
 
         RegVal val;
         switch (type) {
@@ -200,15 +214,6 @@ class PhysRegFile
           default:
             panic("Unsupported register class type %d.", type);
         }
-
-        Tick duration = curTick() - phys_reg->getLastTick();
-        phys_reg->addACETicks(duration);
-        TotalACETime += duration;
-        TotalBits += duration;
-
-        phys_reg->setTick(curTick());
-        phys_reg->setEventRead();
-        phys_reg->setACE(true);
     }
 
     void
@@ -302,7 +307,7 @@ class PhysRegFile
         }
 
         Tick duration = curTick() - phys_reg->getLastTick();
-        TotalBits += duration;
+        (*totalResidencyTicksPtr) += duration;
 
         phys_reg->setTick(curTick());
         phys_reg->setEventWrite();

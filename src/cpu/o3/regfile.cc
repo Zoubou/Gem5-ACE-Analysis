@@ -40,7 +40,7 @@
  */
 
 #include "cpu/o3/regfile.hh"
-
+#include "cpu/o3/cpu.hh"
 #include "cpu/o3/free_list.hh"
 
 namespace gem5
@@ -55,8 +55,9 @@ PhysRegFile::PhysRegFile(unsigned _numPhysicalIntRegs,
                          unsigned _numPhysicalVecPredRegs,
                          unsigned _numPhysicalMatRegs,
                          unsigned _numPhysicalCCRegs,
-                         const BaseISA::RegClasses &reg_classes)
-    : intRegFile(*reg_classes.at(IntRegClass), _numPhysicalIntRegs),
+                         const BaseISA::RegClasses &reg_classes, CPU *_cpu)
+    : cpu(_cpu),
+      intRegFile(*reg_classes.at(IntRegClass), _numPhysicalIntRegs),
       floatRegFile(*reg_classes.at(FloatRegClass), _numPhysicalFloatRegs),
       vectorRegFile(*reg_classes.at(VecRegClass), _numPhysicalVecRegs),
       vectorElemRegFile(*reg_classes.at(VecElemClass),
@@ -84,6 +85,9 @@ PhysRegFile::PhysRegFile(unsigned _numPhysicalIntRegs,
 {
     RegIndex phys_reg;
     RegIndex flat_reg_idx = 0;
+
+    totalAceTicksPtr = &_cpu->cpuStats.totalAceTicks;
+    totalResidencyTicksPtr = &_cpu->cpuStats.totalResidencyTicks;
 
     // The initial batch of registers are the integer ones
     for (phys_reg = 0; phys_reg < numPhysicalIntRegs; phys_reg++) {
