@@ -1027,7 +1027,7 @@ Rename::removeFromHistory(InstSeqNum inst_seq_num, ThreadID tid)
         // can be recognized because the new mapping is the same as
         // the old one.
         if (hb_it->newPhysReg != hb_it->prevPhysReg) {
-            freeList->addReg(hb_it->prevPhysReg);
+            freeList->addReg(hb_it->prevPhysReg, true);
         }
         if (hb_it->prevPhysReg->classValue()== FloatRegClass) {
            ++stats.fpReturned;
@@ -1371,7 +1371,7 @@ Rename::checkSignalsAndUpdate(ThreadID tid)
         auto reg_it = freeingInProgress[tid].cbegin();
         while ( reg_it != freeingInProgress[tid].cend()){
             // Put the renamed physical register back on the free list.
-            freeList->addReg(*reg_it);
+            freeList->addReg(*reg_it, false);
             ++reg_it;
         }
         freeingInProgress[tid].clear();
