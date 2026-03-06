@@ -440,9 +440,9 @@ class PhysRegId : private RegId
     bool pinned;
 
     /*ACE analysis vars here*/
-    bool isACE;
     Tick lastTick;
     Tick ACETicks;
+    Tick fillTimeTick;
     enum Events
     {
         idle,
@@ -458,9 +458,9 @@ class PhysRegId : private RegId
         : RegId(invalidRegClass, -1),
           flatIdx(-1),
           numPinnedWritesToComplete(0),
-          isACE(false),
           lastTick(0),
           ACETicks(0),
+          fillTimeTick(0),
           lastEvent(idle)
     {}
 
@@ -471,9 +471,9 @@ class PhysRegId : private RegId
           flatIdx(_flatIdx),
           numPinnedWritesToComplete(0),
           pinned(false),
-          isACE(false),
           lastTick(0),
           ACETicks(0),
+          fillTimeTick(0),
           lastEvent(idle)
     {}
 
@@ -560,9 +560,6 @@ class PhysRegId : private RegId
     void incrNumPinnedWritesToComplete() { ++numPinnedWritesToComplete; }
 
     /*ACE public functions*/
-    void setACE(bool val){ isACE = val; }
-    bool getACE() const { return isACE; }
-
     void setTick(Tick t) { lastTick = t; }
     Tick
     getLastTick() const
@@ -576,10 +573,38 @@ class PhysRegId : private RegId
         ACETicks += t;
     }
 
+    void
+    setAceTicks(Tick t)
+    {
+        ACETicks = t;
+    }
+
+    Tick
+    getACETicks() const
+    {
+        return ACETicks;
+    }
+
+    void
+    setFillTimeTick(Tick t)
+    {
+        fillTimeTick = t;
+    }
+    Tick
+    getFillTimeTick() const
+    {
+        return fillTimeTick;
+    }
+
     void setEventFill(){ lastEvent = fill; }
     void setEventWrite(){ lastEvent = write; }
     void setEventRead(){ lastEvent = read; }
     void setEventEvict(){ lastEvent = evict; }
+    void
+    setEventIdle()
+    {
+        lastEvent = idle;
+    }
     enum Events getLastEvent() const
     {
         return lastEvent; }
