@@ -72,9 +72,6 @@ class PhysRegFile
 
     CPU *cpu;
 
-    statistics::Scalar *totalAceTicksPtr;
-    statistics::Scalar *totalResidencyTicksPtr;
-
   public:
     using IdRange = std::pair<PhysIds::iterator,
                               PhysIds::iterator>;
@@ -180,15 +177,6 @@ class PhysRegFile
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
 
-        Tick duration = curTick() - phys_reg->getLastTick();
-        phys_reg->addACETicks(duration);
-        (*totalAceTicksPtr) += duration;
-        (*totalResidencyTicksPtr) += duration;
-
-        phys_reg->setTick(curTick());
-        phys_reg->setEventRead();
-        phys_reg->setACE(true);
-
         RegVal val;
         switch (type) {
           case IntRegClass:
@@ -221,6 +209,12 @@ class PhysRegFile
     {
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
+
+        Tick duration = curTick() - phys_reg->getLastTick();
+        phys_reg->addACETicks(duration);
+
+        phys_reg->setTick(curTick());
+        phys_reg->setEventRead();
 
         switch (type) {
           case IntRegClass:
@@ -260,6 +254,9 @@ class PhysRegFile
     {
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
+
+        phys_reg->setTick(curTick());
+        phys_reg->setEventWrite();
 
         switch (type) {
           case VecRegClass:
@@ -305,13 +302,6 @@ class PhysRegFile
           default:
             panic("Unsupported register class type %d.", type);
         }
-
-        Tick duration = curTick() - phys_reg->getLastTick();
-        (*totalResidencyTicksPtr) += duration;
-
-        phys_reg->setTick(curTick());
-        phys_reg->setEventWrite();
-        phys_reg->setACE(false);
     }
 
     void
@@ -319,6 +309,9 @@ class PhysRegFile
     {
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
+
+        phys_reg->setTick(curTick());
+        phys_reg->setEventWrite();
 
         switch (type) {
           case IntRegClass:

@@ -86,9 +86,6 @@ PhysRegFile::PhysRegFile(unsigned _numPhysicalIntRegs,
     RegIndex phys_reg;
     RegIndex flat_reg_idx = 0;
 
-    totalAceTicksPtr = &_cpu->cpuStats.totalAceTicks;
-    totalResidencyTicksPtr = &_cpu->cpuStats.totalResidencyTicks;
-
     // The initial batch of registers are the integer ones
     for (phys_reg = 0; phys_reg < numPhysicalIntRegs; phys_reg++) {
         intRegIds.emplace_back(*reg_classes.at(IntRegClass),
