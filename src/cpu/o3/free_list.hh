@@ -51,6 +51,7 @@
 #include "base/trace.hh"
 #include "cpu/o3/comm.hh"
 #include "cpu/o3/regfile.hh"
+#include "cpu/op_class.hh"
 #include "debug/ACEAnalysis.hh"
 #include "debug/FreeList.hh"
 
@@ -60,7 +61,6 @@ namespace gem5
 namespace o3
 {
 
-class CPU;
 class UnifiedRenameMap;
 
 /**
@@ -77,31 +77,49 @@ class SimpleFreeList
     /** The actual free list */
     std::queue<PhysRegIdPtr> freeRegs;
 
-    statistics::Scalar *totalResidencyTicksPtr;
+    statistics::Vector *totalResidencyTicksPtr;
+    statistics::Vector *totalAceTicksPtr;
+    statistics::Vector *opClassAceTimePtr;
 
   public:
-    SimpleFreeList() : totalResidencyTicksPtr(nullptr){};
+    SimpleFreeList()
+        : totalResidencyTicksPtr(nullptr),
+          totalAceTicksPtr(nullptr),
+          opClassAceTimePtr(nullptr){};
 
-    // 2. Add the Setter
+    // Setter
     void
-    setStatPtr(statistics::Scalar *_ptr)
+    setStatPtr(statistics::Vector *_residency, statistics::Vector *_ace,
+               statistics::Vector *_opClassAceTime)
     {
-        totalResidencyTicksPtr = _ptr;
+        totalResidencyTicksPtr = _residency;
+        totalAceTicksPtr = _ace;
+        opClassAceTimePtr = _opClassAceTime;
     }
 
     /** Add a physical register to the free list */
-    void addReg(PhysRegIdPtr reg) {
+    void
+    addReg(PhysRegIdPtr reg, OpClass op_class, bool isCommit)
+    {
         freeRegs.push(reg);
 
-        Tick duration = curTick() - reg->getLastTick();
-        (*totalResidencyTicksPtr) += duration;
+        const RegClassType type = reg->classValue();
+
+        if (isCommit) {
+            (*totalAceTicksPtr)[type] += reg->getACETicks();
+            (*opClassAceTimePtr)[op_class] += reg->getACETicks();
+            // DPRINTF(ACEAnalysis, "Register %d added to freelist with ACE
+            // ticks %d!\n",reg->index(), reg->getACETicks());
+            reg->setOpClass(No_OpClass);
+            reg->setAceTicks(0);
+        }
+        Tick regTicks = curTick() - reg->getFillTimeTick();
+        (*totalResidencyTicksPtr)[type] += regTicks;
+        // DPRINTF(ACEAnalysis, "Register %d total ticks %d!\n",reg->index(),
+        // regTicks);
 
         reg->setTick(curTick());
         reg->setEventEvict();
-        reg->setACE(false);
-
-        // DPRINTF(ACEAnalysis, "Register %d added to
-        // freelist!\n",reg->index());
     }
 
     /** Add physical registers to the free list */
@@ -112,6 +130,7 @@ class SimpleFreeList
             freeRegs.push(&reg);
             DPRINTF(ACEAnalysis, "Register %d added to freelist!\n",
                 reg->index());
+            reg->setEventIdle();
         });
     }
 
@@ -122,15 +141,9 @@ class SimpleFreeList
         PhysRegIdPtr free_reg = freeRegs.front();
         freeRegs.pop();
 
-        Tick duration = curTick() - free_reg->getLastTick();
-        (*totalResidencyTicksPtr) += duration;
-
         free_reg->setTick(curTick());
+        free_reg->setFillTimeTick(curTick());
         free_reg->setEventFill();
-        free_reg->setACE(false);
-
-        // DPRINTF(ACEAnalysis, "Register %d removed from
-        // freelist!\n",free_reg->index());
 
         return free_reg;
 
@@ -172,7 +185,6 @@ class UnifiedFreeList
      * from floating-point physical register indices.
      */
     PhysRegFile *regFile;
-    CPU *cpu;
 
     /*
      * We give UnifiedRenameMap internal access so it can get at the
@@ -190,8 +202,7 @@ class UnifiedFreeList
      *  @param reservedFloatRegs Number of fp registers already
      *                           used by initial mappings.
      */
-    UnifiedFreeList(const std::string &_my_name, PhysRegFile *_regFile,
-                    CPU *_cpu);
+    UnifiedFreeList(const std::string &_my_name, PhysRegFile *_regFile);
 
     /** Gives the name of the freelist. */
     std::string name() const { return _name; };
@@ -204,14 +215,16 @@ class UnifiedFreeList
     void
     addRegs(InputIt first, InputIt last)
     {
-        std::for_each(first, last, [this](auto &reg) { addReg(&reg); });
+        std::for_each(first, last,
+                      [this](auto &reg) { addReg(&reg, No_OpClass, false); });
     }
 
     /** Adds a register back to the free list. */
     void
-    addReg(PhysRegIdPtr freed_reg)
+    addReg(PhysRegIdPtr freed_reg, OpClass op_class, bool isCommit)
     {
-        freeLists[freed_reg->classValue()].addReg(freed_reg);
+        freeLists[freed_reg->classValue()].addReg(freed_reg, op_class,
+                                                  isCommit);
     }
 
     /** Checks if there are any free registers of type type. */
