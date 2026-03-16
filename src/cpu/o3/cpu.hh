@@ -613,9 +613,6 @@ class CPU : public BaseCPU
          * quiesce operation or waiting for an interrupt. */
         statistics::Scalar quiesceCycles;
 
-        statistics::Scalar totalAceTicks;
-        statistics::Scalar totalResidencyTicks;
-        statistics::Formula AVF;
     } cpuStats;
 
   public:

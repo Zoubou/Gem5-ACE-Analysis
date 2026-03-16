@@ -93,7 +93,7 @@ CPU::CPU(const BaseO3CPUParams &params)
               params.numPhysMatRegs, params.numPhysCCRegs,
               params.isa[0]->regClasses(), this),
 
-      freeList(name() + ".freelist", &regFile, this),
+      freeList(name() + ".freelist", &regFile),
 
       rob(this, params),
 
@@ -351,12 +351,7 @@ CPU::CPUStats::CPUStats(CPU *cpu)
                "to idling"),
       ADD_STAT(quiesceCycles, statistics::units::Cycle::get(),
                "Total number of cycles that CPU has spent quiesced or waiting "
-               "for an interrupt"),
-      ADD_STAT(totalAceTicks, statistics::units::Tick::get(),
-               "Total ACE Ticks"),
-      ADD_STAT(totalResidencyTicks, statistics::units::Tick::get(),
-               "Total Residency Ticks"),
-      ADD_STAT(AVF, statistics::units::Ratio::get(), "Register AVF")
+               "for an interrupt")
 {
     // Register any of the O3CPU's stats here.
     timesIdled
@@ -365,11 +360,7 @@ CPU::CPUStats::CPUStats(CPU *cpu)
     idleCycles
         .prereq(idleCycles);
 
-    quiesceCycles
-        .prereq(quiesceCycles);
-
-    AVF = totalAceTicks / totalResidencyTicks;
-    AVF.precision(6);
+    quiesceCycles.prereq(quiesceCycles);
 }
 
 void
