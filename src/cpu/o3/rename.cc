@@ -1026,8 +1026,10 @@ Rename::removeFromHistory(InstSeqNum inst_seq_num, ThreadID tid)
         // Don't free special phys regs like misc and zero regs, which
         // can be recognized because the new mapping is the same as
         // the old one.
+        OpClass op_class = hb_it->prevPhysReg->getOpClass();
+
         if (hb_it->newPhysReg != hb_it->prevPhysReg) {
-            freeList->addReg(hb_it->prevPhysReg, true);
+            freeList->addReg(hb_it->prevPhysReg, op_class, true);
         }
         if (hb_it->prevPhysReg->classValue()== FloatRegClass) {
            ++stats.fpReturned;
@@ -1165,6 +1167,7 @@ Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid)
         inst->renameDestReg(dest_idx,
                             rename_result.first,
                             rename_result.second);
+        rename_result.first->setOpClass(inst->opClass());
 
         ++stats.renamedOperands;
     }
@@ -1371,7 +1374,7 @@ Rename::checkSignalsAndUpdate(ThreadID tid)
         auto reg_it = freeingInProgress[tid].cbegin();
         while ( reg_it != freeingInProgress[tid].cend()){
             // Put the renamed physical register back on the free list.
-            freeList->addReg(*reg_it, false);
+            freeList->addReg(*reg_it, No_OpClass, false);
             ++reg_it;
         }
         freeingInProgress[tid].clear();
