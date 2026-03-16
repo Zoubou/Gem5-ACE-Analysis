@@ -50,6 +50,7 @@
 #include "base/debug.hh"
 #include "base/intmath.hh"
 #include "base/types.hh"
+#include "cpu/op_class.hh"
 #include "debug/InvalidReg.hh"
 #include "sim/cur_tick.hh"
 
@@ -452,6 +453,7 @@ class PhysRegId : private RegId
         evict
     };
     enum Events lastEvent;
+    OpClass opClass;
 
   public:
     explicit PhysRegId()
@@ -461,7 +463,8 @@ class PhysRegId : private RegId
           lastTick(0),
           ACETicks(0),
           fillTimeTick(0),
-          lastEvent(idle)
+          lastEvent(idle),
+          opClass(No_OpClass)
     {}
 
     /** Scalar PhysRegId constructor. */
@@ -474,7 +477,8 @@ class PhysRegId : private RegId
           lastTick(0),
           ACETicks(0),
           fillTimeTick(0),
-          lastEvent(idle)
+          lastEvent(idle),
+          opClass(No_OpClass)
     {}
 
     /** Visible RegId methods */
@@ -608,6 +612,17 @@ class PhysRegId : private RegId
     enum Events getLastEvent() const
     {
         return lastEvent; }
+
+    OpClass
+    getOpClass() const
+    {
+        return opClass;
+    }
+    void
+    setOpClass(OpClass op_class)
+    {
+        opClass = op_class;
+    }
 };
 
 using PhysRegIdPtr = PhysRegId*;
