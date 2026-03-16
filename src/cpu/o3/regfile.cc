@@ -42,12 +42,77 @@
 #include "cpu/o3/regfile.hh"
 #include "cpu/o3/cpu.hh"
 #include "cpu/o3/free_list.hh"
+#include "debug/ACEAnalysis.hh"
 
 namespace gem5
 {
 
 namespace o3
 {
+
+PhysRegFile::RegFileStats::RegFileStats(statistics::Group *parent,
+                                        PhysRegFile *_rf)
+    : statistics::Group(parent, "regFile"),
+      rf(_rf),
+      ADD_STAT(totalAceTicks, statistics::units::Tick::get(),
+               "Total ACE Ticks"),
+      ADD_STAT(totalResidencyTicks, statistics::units::Tick::get(),
+               "Total Residency Ticks"),
+      ADD_STAT(opClassAceTime, statistics::units::Tick::get(),
+               "Total ACE Ticks per OpClass"),
+      ADD_STAT(numRegs, statistics::units::Count::get(),
+               "Number of registers"),
+      ADD_STAT(AVF, statistics::units::Ratio::get(), "Register AVF")
+{
+    const int NumRegClasses = CCRegClass + 1;
+    const OpClass NumOpClasses = Num_OpClasses;
+
+    totalAceTicks.init(NumRegClasses);
+    totalResidencyTicks.init(NumRegClasses);
+    opClassAceTime.init(NumOpClasses);
+    numRegs.init(NumRegClasses);
+
+    const char *reg_names[] = {"Int",     "Float", "Vec", "VecElem",
+                               "VecPred", "Mat",   "CC",  "Misc"};
+
+    for (int i = 0; i < NumRegClasses; ++i) {
+        if (i < (sizeof(reg_names) / sizeof(char *))) {
+            totalAceTicks.subname(i, reg_names[i]);
+            totalResidencyTicks.subname(i, reg_names[i]);
+            numRegs.subname(i, reg_names[i]);
+            AVF.subname(i, reg_names[i]);
+        }
+    }
+
+    for (int i = 0; i < NumOpClasses; ++i) {
+        opClassAceTime.subname(i, enums::OpClassStrings[i]);
+    }
+
+    // Element-wise vector division for the formula
+    AVF = totalAceTicks / (numRegs * simTicks);
+    AVF.precision(6);
+
+    // Hide zero entries to keep the stats file clean
+    totalAceTicks.flags(statistics::nozero);
+    totalResidencyTicks.flags(statistics::nozero);
+    opClassAceTime.flags(statistics::nozero);
+    numRegs.flags(statistics::nozero);
+    AVF.flags(statistics::nozero | statistics::nonan);
+}
+
+void
+PhysRegFile::RegFileStats::preDumpStats()
+{
+    statistics::Group::preDumpStats();
+
+    numRegs[IntRegClass] = rf->numPhysicalIntRegs;
+    numRegs[FloatRegClass] = rf->numPhysicalFloatRegs;
+    numRegs[VecRegClass] = rf->numPhysicalVecRegs;
+    numRegs[VecElemClass] = rf->numPhysicalVecElemRegs;
+    numRegs[VecPredRegClass] = rf->numPhysicalVecPredRegs;
+    numRegs[MatRegClass] = rf->numPhysicalMatRegs;
+    numRegs[CCRegClass] = rf->numPhysicalCCRegs;
+}
 
 PhysRegFile::PhysRegFile(unsigned _numPhysicalIntRegs,
                          unsigned _numPhysicalFloatRegs,
@@ -81,7 +146,8 @@ PhysRegFile::PhysRegFile(unsigned _numPhysicalIntRegs,
                    _numPhysicalVecRegs + numPhysicalVecElemRegs +
                    _numPhysicalVecPredRegs + _numPhysicalMatRegs +
                    _numPhysicalCCRegs +
-                   reg_classes.at(MiscRegClass)->numRegs())
+                   reg_classes.at(MiscRegClass)->numRegs()),
+      regFileStats(_cpu, this)
 {
     RegIndex phys_reg;
     RegIndex flat_reg_idx = 0;
@@ -141,10 +207,10 @@ PhysRegFile::PhysRegFile(unsigned _numPhysicalIntRegs,
     }
 }
 
-
 void
 PhysRegFile::initFreeList(UnifiedFreeList *freeList)
 {
+
     // Initialize the free lists.
     int reg_idx = 0;
 

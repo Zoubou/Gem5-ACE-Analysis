@@ -46,6 +46,7 @@
 #include <vector>
 
 #include "arch/generic/isa.hh"
+#include "base/statistics.hh"
 #include "base/trace.hh"
 #include "cpu/o3/comm.hh"
 #include "cpu/regfile.hh"
@@ -177,6 +178,12 @@ class PhysRegFile
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
 
+        Tick duration = curTick() - phys_reg->getLastTick();
+        phys_reg->addACETicks(duration);
+
+        phys_reg->setTick(curTick());
+        phys_reg->setEventRead();
+
         RegVal val;
         switch (type) {
           case IntRegClass:
@@ -210,11 +217,14 @@ class PhysRegFile
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
 
-        Tick duration = curTick() - phys_reg->getLastTick();
-        phys_reg->addACETicks(duration);
+        if (type == VecRegClass || type == VecPredRegClass ||
+            type == MatRegClass) {
+            Tick duration = curTick() - phys_reg->getLastTick();
+            phys_reg->addACETicks(duration);
 
-        phys_reg->setTick(curTick());
-        phys_reg->setEventRead();
+            phys_reg->setTick(curTick());
+            phys_reg->setEventRead();
+        }
 
         switch (type) {
           case IntRegClass:
@@ -276,6 +286,9 @@ class PhysRegFile
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
 
+        phys_reg->setTick(curTick());
+        phys_reg->setEventWrite();
+
         switch (type) {
           case InvalidRegClass:
             break;
@@ -310,8 +323,11 @@ class PhysRegFile
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
 
-        phys_reg->setTick(curTick());
-        phys_reg->setEventWrite();
+        if (type == VecRegClass || type == VecPredRegClass ||
+            type == MatRegClass) {
+            phys_reg->setTick(curTick());
+            phys_reg->setEventWrite();
+        }
 
         switch (type) {
           case IntRegClass:
@@ -345,6 +361,21 @@ class PhysRegFile
             panic("Unrecognized register class type %d.", type);
         }
     }
+
+    struct RegFileStats : public statistics::Group
+    {
+        RegFileStats(statistics::Group *parent, PhysRegFile *_rf);
+
+        void preDumpStats() override;
+
+        PhysRegFile *rf;
+        statistics::Vector totalAceTicks;
+        statistics::Vector totalResidencyTicks;
+        statistics::Vector opClassAceTime;
+        statistics::Vector numRegs;
+        statistics::Formula AVF;
+
+    } regFileStats;
 };
 
 } // namespace o3
