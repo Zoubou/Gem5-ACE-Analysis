@@ -6,7 +6,7 @@ from gem5.components.memory.single_channel import SingleChannelDDR4_2400
 from gem5.components.processors.cpu_types import CPUTypes
 from gem5.components.processors.simple_processor import SimpleProcessor
 from gem5.isas import ISA
-from gem5.resources.resource import obtain_resource
+from gem5.resources.resource import BinaryResource
 from gem5.simulate.simulator import Simulator
 
 # 1. Setup the Cache Hierarchy
@@ -29,8 +29,14 @@ board = SimpleBoard(
     cache_hierarchy=cache_hierarchy,
 )
 
-# 5. Set the Workload (A simple Hello World)
-board.set_se_binary_workload(obtain_resource("x86-hello64-static"))
+board.set_se_binary_workload(
+    BinaryResource(local_path="/home/johnli/mibench/automotive/susan/susan"),
+    arguments=[
+        "/home/johnli/mibench/automotive/susan/input_small.pgm",
+        "/home/johnli/mibench/automotive/susan/output_small.pgm",
+        "-s",
+    ],
+)
 
 # 6. Run the Simulation
 simulator = Simulator(board=board)
