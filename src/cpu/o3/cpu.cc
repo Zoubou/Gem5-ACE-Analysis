@@ -965,7 +965,7 @@ CPU::setMiscReg(int misc_reg, RegVal val, ThreadID tid)
 }
 
 RegVal
-CPU::getReg(PhysRegIdPtr phys_reg, ThreadID tid)
+CPU::getReg(PhysRegIdPtr phys_reg, uint8_t instTypes, ThreadID tid)
 {
     switch (phys_reg->classValue()) {
       case IntRegClass:
@@ -987,11 +987,11 @@ CPU::getReg(PhysRegIdPtr phys_reg, ThreadID tid)
       default:
         break;
     }
-    return regFile.getReg(phys_reg);
+    return regFile.getReg(phys_reg, instTypes);
 }
 
 void
-CPU::getReg(PhysRegIdPtr phys_reg, void *val, ThreadID tid)
+CPU::getReg(PhysRegIdPtr phys_reg, void *val, uint8_t instTypes, ThreadID tid)
 {
     switch (phys_reg->classValue()) {
       case IntRegClass:
@@ -1013,7 +1013,7 @@ CPU::getReg(PhysRegIdPtr phys_reg, void *val, ThreadID tid)
       default:
         break;
     }
-    regFile.getReg(phys_reg, val);
+    regFile.getReg(phys_reg, val, instTypes);
 }
 
 void *
@@ -1089,7 +1089,7 @@ CPU::getArchReg(const RegId &reg, ThreadID tid)
 {
     const RegId flat = reg.flatten(*isa[tid]);
     PhysRegIdPtr phys_reg = commitRenameMap[tid].lookup(flat);
-    return regFile.getReg(phys_reg);
+    return regFile.getReg(phys_reg, (uint8_t)0);
 }
 
 void
@@ -1097,7 +1097,7 @@ CPU::getArchReg(const RegId &reg, void *val, ThreadID tid)
 {
     const RegId flat = reg.flatten(*isa[tid]);
     PhysRegIdPtr phys_reg = commitRenameMap[tid].lookup(flat);
-    regFile.getReg(phys_reg, val);
+    regFile.getReg(phys_reg, val, (uint8_t)0);
 }
 
 void *

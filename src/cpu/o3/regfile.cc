@@ -58,22 +58,24 @@ PhysRegFile::RegFileStats::RegFileStats(statistics::Group *parent,
                "Total ACE Ticks"),
       ADD_STAT(totalResidencyTicks, statistics::units::Tick::get(),
                "Total Residency Ticks"),
-      ADD_STAT(opClassAceTime, statistics::units::Tick::get(),
-               "Total ACE Ticks per OpClass"),
+      ADD_STAT(instTypeAceTicks, statistics::units::Tick::get(),
+               "ACE Ticks by Instruction Type"),
       ADD_STAT(numRegs, statistics::units::Count::get(),
                "Number of registers"),
       ADD_STAT(AVF, statistics::units::Ratio::get(), "Register AVF")
 {
     const int NumRegClasses = CCRegClass + 1;
-    const OpClass NumOpClasses = Num_OpClasses;
 
     totalAceTicks.init(NumRegClasses);
     totalResidencyTicks.init(NumRegClasses);
-    opClassAceTime.init(NumOpClasses);
+    instTypeAceTicks.init(PhysRegId::InstTypeNum);
     numRegs.init(NumRegClasses);
 
     const char *reg_names[] = {"Int",     "Float", "Vec", "VecElem",
                                "VecPred", "Mat",   "CC",  "Misc"};
+
+    const char *inst_type_names[] = {"intAlu", "floatAlu", "vecAlu", "Load",
+                                     "Store", "Branch"};
 
     for (int i = 0; i < NumRegClasses; ++i) {
         if (i < (sizeof(reg_names) / sizeof(char *))) {
@@ -84,8 +86,10 @@ PhysRegFile::RegFileStats::RegFileStats(statistics::Group *parent,
         }
     }
 
-    for (int i = 0; i < NumOpClasses; ++i) {
-        opClassAceTime.subname(i, enums::OpClassStrings[i]);
+    for (int i = 0; i < PhysRegId::InstTypeNum; ++i) {
+        if (i < (sizeof(inst_type_names) / sizeof(char *))) {
+            instTypeAceTicks.subname(i, inst_type_names[i]);
+        }
     }
 
     // Element-wise vector division for the formula
@@ -95,7 +99,7 @@ PhysRegFile::RegFileStats::RegFileStats(statistics::Group *parent,
     // Hide zero entries to keep the stats file clean
     totalAceTicks.flags(statistics::nozero);
     totalResidencyTicks.flags(statistics::nozero);
-    opClassAceTime.flags(statistics::nozero);
+    instTypeAceTicks.flags(statistics::nozero);
     numRegs.flags(statistics::nozero);
     AVF.flags(statistics::nozero | statistics::nonan);
 }

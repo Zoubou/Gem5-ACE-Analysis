@@ -1133,11 +1133,12 @@ class DynInst : public ExecContext, public RefCounted
 
             if (bytes == sizeof(RegVal)) {
                 setRegOperand(staticInst.get(), idx,
-                        cpu->getReg(prev_phys_reg, threadNumber));
+                        cpu->getReg(prev_phys_reg, (uint8_t)0, threadNumber));
             } else {
                 const size_t size = original_dest_reg.regClass().regBytes();
                 auto val = std::make_unique<uint8_t[]>(size);
-                cpu->getReg(prev_phys_reg, val.get(), threadNumber);
+                cpu->getReg(prev_phys_reg, val.get(), (uint8_t)0,
+                            threadNumber);
                 setRegOperand(staticInst.get(), idx, val.get());
             }
         }
@@ -1157,6 +1158,21 @@ class DynInst : public ExecContext, public RefCounted
     // long as these methods don't copy the pointer into any long-term
     // storage (which is pretty hard to imagine they would have reason
     // to do).
+    uint8_t
+    getInstTypeFlags() const {
+        uint8_t flags = 0;
+        if (isInteger() && !isLoad() && !isStore() && !isControl())
+            flags |= PhysRegId::InstTypeIntAlu;
+        if (isFloating() && !isLoad() && !isStore() && !isControl())
+            flags |= PhysRegId::InstTypeFloatAlu;
+        if (isVector() && !isLoad() && !isStore() && !isControl())
+            flags |= PhysRegId::InstTypeVectorAlu;
+        if (isLoad())     flags |= PhysRegId::InstTypeLoad;
+        if (isStore())    flags |= PhysRegId::InstTypeStore;
+        if (isControl())  flags |= PhysRegId::InstTypeControl;
+
+        return flags;
+    }
 
     RegVal
     getRegOperand(const StaticInst *si, int idx) override
@@ -1164,7 +1180,7 @@ class DynInst : public ExecContext, public RefCounted
         const PhysRegIdPtr reg = renamedSrcIdx(idx);
         if (reg->is(InvalidRegClass))
             return 0;
-        return cpu->getReg(reg, threadNumber);
+        return cpu->getReg(reg, getInstTypeFlags(), threadNumber);
     }
 
     void
@@ -1173,7 +1189,7 @@ class DynInst : public ExecContext, public RefCounted
         const PhysRegIdPtr reg = renamedSrcIdx(idx);
         if (reg->is(InvalidRegClass))
             return;
-        cpu->getReg(reg, val, threadNumber);
+        cpu->getReg(reg, val, getInstTypeFlags(), threadNumber);
     }
 
     void *

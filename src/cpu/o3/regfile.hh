@@ -173,13 +173,14 @@ class PhysRegFile
     }
 
     RegVal
-    getReg(PhysRegIdPtr phys_reg) const
+    getReg(PhysRegIdPtr phys_reg, uint8_t instTypes)
     {
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
 
         Tick duration = curTick() - phys_reg->getLastTick();
         phys_reg->addACETicks(duration);
+        phys_reg->addInstTypeAceTicks(instTypes, duration);
 
         phys_reg->setTick(curTick());
         phys_reg->setEventRead();
@@ -212,7 +213,7 @@ class PhysRegFile
     }
 
     void
-    getReg(PhysRegIdPtr phys_reg, void *val) const
+    getReg(PhysRegIdPtr phys_reg, void *val, uint8_t instTypes)
     {
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
@@ -221,6 +222,7 @@ class PhysRegFile
             type == MatRegClass) {
             Tick duration = curTick() - phys_reg->getLastTick();
             phys_reg->addACETicks(duration);
+            phys_reg->addInstTypeAceTicks(instTypes, duration);
 
             phys_reg->setTick(curTick());
             phys_reg->setEventRead();
@@ -228,10 +230,10 @@ class PhysRegFile
 
         switch (type) {
           case IntRegClass:
-            *(RegVal *)val = getReg(phys_reg);
+            *(RegVal *)val = getReg(phys_reg, instTypes);
             break;
           case FloatRegClass:
-            *(RegVal *)val = getReg(phys_reg);
+            *(RegVal *)val = getReg(phys_reg, instTypes);
             break;
           case VecRegClass:
             vectorRegFile.get(idx, val);
@@ -239,7 +241,7 @@ class PhysRegFile
                     "data %s\n", idx, vectorRegFile.regClass.valString(val));
             break;
           case VecElemClass:
-            *(RegVal *)val = getReg(phys_reg);
+            *(RegVal *)val = getReg(phys_reg, instTypes);
             break;
           case VecPredRegClass:
             vecPredRegFile.get(idx, val);
@@ -252,7 +254,7 @@ class PhysRegFile
                     "data %s\n", idx, matRegFile.regClass.valString(val));
             break;
           case CCRegClass:
-            *(RegVal *)val = getReg(phys_reg);
+            *(RegVal *)val = getReg(phys_reg, instTypes);
             break;
           default:
             panic("Unrecognized register class type %d.", type);
@@ -371,7 +373,7 @@ class PhysRegFile
         PhysRegFile *rf;
         statistics::Vector totalAceTicks;
         statistics::Vector totalResidencyTicks;
-        statistics::Vector opClassAceTime;
+        statistics::Vector instTypeAceTicks;
         statistics::Vector numRegs;
         statistics::Formula AVF;
 
