@@ -435,6 +435,19 @@ class VecElemRegClassOps : public TypedRegClassOps<ValueType>
  * prevent code replication. */
 class PhysRegId : private RegId
 {
+  public:
+
+    enum InstTypeFlag : uint8_t
+    {
+        InstTypeIntAlu    = 0x01,
+        InstTypeFloatAlu   = 0x02,
+        InstTypeVectorAlu  = 0x04,
+        InstTypeLoad    = 0x08,
+        InstTypeStore   = 0x10,
+        InstTypeControl = 0x20,
+        InstTypeNum = 6
+    };
+
   private:
     RegIndex flatIdx;
     int numPinnedWritesToComplete;
@@ -453,7 +466,7 @@ class PhysRegId : private RegId
         evict
     };
     enum Events lastEvent;
-    OpClass opClass;
+    Tick instTypeAceTicks[InstTypeNum];
 
   public:
     explicit PhysRegId()
@@ -464,7 +477,7 @@ class PhysRegId : private RegId
           ACETicks(0),
           fillTimeTick(0),
           lastEvent(idle),
-          opClass(No_OpClass)
+          instTypeAceTicks{}
     {}
 
     /** Scalar PhysRegId constructor. */
@@ -478,7 +491,7 @@ class PhysRegId : private RegId
           ACETicks(0),
           fillTimeTick(0),
           lastEvent(idle),
-          opClass(No_OpClass)
+          instTypeAceTicks{}
     {}
 
     /** Visible RegId methods */
@@ -611,17 +624,23 @@ class PhysRegId : private RegId
     }
     enum Events getLastEvent() const
     {
-        return lastEvent; }
-
-    OpClass
-    getOpClass() const
-    {
-        return opClass;
+        return lastEvent;
     }
-    void
-    setOpClass(OpClass op_class)
-    {
-        opClass = op_class;
+
+    void addInstTypeAceTicks(uint8_t instType, Tick t) {
+        for (int i = 0; i < InstTypeNum; i++) {
+            if (instType & (1 << i))
+                instTypeAceTicks[i] += t;
+        }
+    }
+
+    Tick getInstTypeAceTicks(int i) const {
+        return instTypeAceTicks[i];
+    }
+
+    void resetInstTypeAceTicks() {
+        for (int i = 0; i < InstTypeNum; i++)
+            instTypeAceTicks[i] = 0;
     }
 };
 
