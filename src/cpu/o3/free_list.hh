@@ -111,10 +111,11 @@ class SimpleFreeList
             for (int i = 0; i < PhysRegId::InstTypeNum; i++) {
                 (*instTypeAceTicksPtr)[i] += reg->getInstTypeAceTicks(i);
             }
-
-            reg->resetInstTypeAceTicks();
-            reg->setAceTicks(0);
         }
+
+        reg->resetInstTypeAceTicks();
+        reg->setAceTicks(0);
+
         Tick regTicks = curTick() - reg->getFillTimeTick();
         (*totalResidencyTicksPtr)[type] += regTicks;
 
