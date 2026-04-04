@@ -437,7 +437,7 @@ class PhysRegId : private RegId
 {
   public:
 
-    enum InstTypeFlag : uint8_t
+    enum InstTypeFlag : uint16_t
     {
         InstTypeIntAlu    = 0x01,
         InstTypeFloatAlu   = 0x02,
@@ -445,7 +445,10 @@ class PhysRegId : private RegId
         InstTypeLoad    = 0x08,
         InstTypeStore   = 0x10,
         InstTypeControl = 0x20,
-        InstTypeNum = 6
+        InstTypeLogical = 0x40,
+        InstTypeAnd     = 0x80,
+        InstTypeOr      = 0x100,
+        InstTypeNum = 10
     };
 
   private:
@@ -627,7 +630,7 @@ class PhysRegId : private RegId
         return lastEvent;
     }
 
-    void addInstTypeAceTicks(uint8_t instType, Tick t) {
+    void addInstTypeAceTicks(uint16_t instType, Tick t) {
         for (int i = 0; i < InstTypeNum; i++) {
             if (instType & (1 << i))
                 instTypeAceTicks[i] += t;
