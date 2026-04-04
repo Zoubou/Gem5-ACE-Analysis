@@ -173,7 +173,7 @@ class PhysRegFile
     }
 
     RegVal
-    getReg(PhysRegIdPtr phys_reg, uint8_t instTypes)
+    getReg(PhysRegIdPtr phys_reg, uint16_t instTypes)
     {
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
@@ -213,7 +213,7 @@ class PhysRegFile
     }
 
     void
-    getReg(PhysRegIdPtr phys_reg, void *val, uint8_t instTypes)
+    getReg(PhysRegIdPtr phys_reg, void *val, uint16_t instTypes)
     {
         const RegClassType type = phys_reg->classValue();
         const RegIndex idx = phys_reg->index();
