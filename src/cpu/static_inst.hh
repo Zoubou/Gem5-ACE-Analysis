@@ -166,6 +166,12 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isCondCtrl()     const { return flags[IsCondControl]; }
     bool isUncondCtrl()   const { return flags[IsUncondControl]; }
 
+    bool isIntAlu()      const { return flags[IsIntAlu]; }
+    bool isFloatAlu()     const { return flags[IsFloatAlu]; }
+    bool isLogical()      const { return flags[IsLogical]; }
+    bool isAnd()          const { return flags[IsAnd]; }
+    bool isOr()           const { return flags[IsOr]; }
+
     bool isSerializing()  const { return flags[IsSerializing] ||
                                       flags[IsSerializeBefore] ||
                                       flags[IsSerializeAfter]; }

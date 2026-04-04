@@ -63,6 +63,8 @@ class StaticInstFlags(Enum):
         "IsVector",  # References Vector regs.
         "IsVectorElem",  # References Vector reg elems.
         "IsMatrix",  # References Matrix regs.
+        "IsIntAlu",  # Is an integer ALU instruction.
+        "IsFloatAlu",  # Is a floating point ALU instruction.
         "IsLoad",  # Reads from memory (load or prefetch).
         "IsStore",  # Writes to memory.
         "IsAtomic",  # Does atomic RMW to memory.
@@ -78,6 +80,9 @@ class StaticInstFlags(Enum):
         "IsReturn",  # Subroutine return.
         "IsSerializing",  # Serializes pipeline: won't execute until all
         # older instructions have committed.
+        "IsLogical",  # Logical instruction (AND, OR, XOR, etc.)
+        "IsAnd",  # Logical AND instruction
+        "IsOr",  # Logical OR instruction
         "IsSerializeBefore",
         "IsSerializeAfter",
         "IsWriteBarrier",  # Is a write barrier

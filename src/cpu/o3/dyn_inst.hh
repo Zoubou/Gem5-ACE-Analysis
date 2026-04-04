@@ -561,6 +561,13 @@ class DynInst : public ExecContext, public RefCounted
     bool isIndirectCtrl() const { return staticInst->isIndirectCtrl(); }
     bool isCondCtrl()     const { return staticInst->isCondCtrl(); }
     bool isUncondCtrl()   const { return staticInst->isUncondCtrl(); }
+
+    bool isIntAlu()      const { return staticInst->isIntAlu(); }
+    bool isFloatAlu()     const { return staticInst->isFloatAlu(); }
+    bool isLogical()      const { return staticInst->isLogical(); }
+    bool isAnd()          const { return staticInst->isAnd(); }
+    bool isOr()           const { return staticInst->isOr(); }
+
     bool isSerializing()  const { return staticInst->isSerializing(); }
     bool
     isSerializeBefore() const
@@ -1133,11 +1140,11 @@ class DynInst : public ExecContext, public RefCounted
 
             if (bytes == sizeof(RegVal)) {
                 setRegOperand(staticInst.get(), idx,
-                        cpu->getReg(prev_phys_reg, (uint8_t)0, threadNumber));
+                        cpu->getReg(prev_phys_reg, (uint16_t)0, threadNumber));
             } else {
                 const size_t size = original_dest_reg.regClass().regBytes();
                 auto val = std::make_unique<uint8_t[]>(size);
-                cpu->getReg(prev_phys_reg, val.get(), (uint8_t)0,
+                cpu->getReg(prev_phys_reg, val.get(), (uint16_t)0,
                             threadNumber);
                 setRegOperand(staticInst.get(), idx, val.get());
             }
@@ -1158,18 +1165,21 @@ class DynInst : public ExecContext, public RefCounted
     // long as these methods don't copy the pointer into any long-term
     // storage (which is pretty hard to imagine they would have reason
     // to do).
-    uint8_t
+    uint16_t
     getInstTypeFlags() const {
-        uint8_t flags = 0;
-        if (isInteger() && !isLoad() && !isStore() && !isControl())
+        uint16_t flags = 0;
+        if (isIntAlu())
             flags |= PhysRegId::InstTypeIntAlu;
-        if (isFloating() && !isLoad() && !isStore() && !isControl())
+        if (isFloatAlu())
             flags |= PhysRegId::InstTypeFloatAlu;
         if (isVector() && !isLoad() && !isStore() && !isControl())
             flags |= PhysRegId::InstTypeVectorAlu;
         if (isLoad())     flags |= PhysRegId::InstTypeLoad;
         if (isStore())    flags |= PhysRegId::InstTypeStore;
         if (isControl())  flags |= PhysRegId::InstTypeControl;
+        if (isLogical())  flags |= PhysRegId::InstTypeLogical;
+        if (isAnd())      flags |= PhysRegId::InstTypeAnd;
+        if (isOr())       flags |= PhysRegId::InstTypeOr;
 
         return flags;
     }
