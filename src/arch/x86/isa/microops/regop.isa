@@ -84,6 +84,10 @@ def template MicroRegOpDeclare {{
             %(set_reg_idx_arr)s;
             %(constructor)s;
             %(cond_control_flag_init)s;
+            %(is_intalu_flag_init)s;
+            %(is_logical_flag_init)s;
+            %(is_and_flag_init)s;
+            %(is_or_flag_init)s;
 
             // In some cases, we need to invalidate some source registers
             // to eliminate unnecessary input dependencies (e.g., for a
@@ -115,6 +119,10 @@ def template MicroRegOpBranchDeclare {{
             %(set_reg_idx_arr)s;
             %(constructor)s;
             %(cond_control_flag_init)s;
+            %(is_intalu_flag_init)s;
+            %(is_logical_flag_init)s;
+            %(is_and_flag_init)s;
+            %(is_or_flag_init)s;
         }
 
         Fault execute(ExecContext *, trace::InstRecord *) const override;
@@ -190,6 +198,8 @@ let {{
     class RegOpMeta(type):
         def buildCppClasses(self, name, Name, suffix, code, big_code, \
                 flag_code, cond_check, else_code, cond_control_flag_init,
+                is_intalu_flag_init, is_logical_flag_init, is_and_flag_init,
+                is_or_flag_init,
                 invalidate_srcs, op_class, operand_types):
 
             # Globals to stick the output in
@@ -199,9 +209,17 @@ let {{
 
             # Stick all the code together so it can be searched at once
             allCode = "|".join((code, flag_code, cond_check, else_code,
-                                cond_control_flag_init, invalidate_srcs))
+                                cond_control_flag_init,
+                                is_intalu_flag_init,
+                                is_logical_flag_init,
+                                is_and_flag_init, is_or_flag_init,
+                                invalidate_srcs))
             allBigCode = "|".join((big_code, flag_code, cond_check, else_code,
-                                   cond_control_flag_init, invalidate_srcs))
+                                   cond_control_flag_init,
+                                   is_intalu_flag_init,
+                                   is_logical_flag_init,
+                                   is_and_flag_init, is_or_flag_init,
+                                   invalidate_srcs))
 
             # If op2 is used anywhere, make register and immediate versions
             # of this code.
@@ -227,6 +245,10 @@ let {{
                         matcher.sub(src2_name, cond_check),
                         matcher.sub(src2_name, else_code),
                         matcher.sub(src2_name, cond_control_flag_init),
+                        matcher.sub(src2_name, is_intalu_flag_init),
+                        matcher.sub(src2_name, is_logical_flag_init),
+                        matcher.sub(src2_name, is_and_flag_init),
+                        matcher.sub(src2_name, is_or_flag_init),
                         matcher.sub(src2_name, invalidate_srcs),
                         op_class, operand_types)
                 imm_name = '(int8_t)imm8' if match.group("prefix") else 'imm8'
@@ -237,6 +259,10 @@ let {{
                         matcher.sub(imm_name, cond_check),
                         matcher.sub(imm_name, else_code),
                         matcher.sub(imm_name, cond_control_flag_init),
+                        matcher.sub(imm_name, is_intalu_flag_init),
+                        matcher.sub(imm_name, is_logical_flag_init),
+                        matcher.sub(imm_name, is_and_flag_init),
+                        matcher.sub(imm_name, is_or_flag_init),
                         matcher.sub(imm_name, invalidate_srcs),
                         op_class, imm_operand_types)
                 return
@@ -247,6 +273,8 @@ let {{
                 self.buildCppClasses(name, Name, suffix,
                         code, big_code, "", "true", else_code,
                         "flags[IsUncondControl] = flags[IsControl];",
+                        is_intalu_flag_init, is_logical_flag_init,
+                        is_and_flag_init, is_or_flag_init,
                         invalidate_srcs, op_class, operand_types)
                 suffix = "Flags" + suffix
 
@@ -265,6 +293,10 @@ let {{
                      "cond_check" : cond_check,
                      "else_code" : else_code,
                      "cond_control_flag_init" : cond_control_flag_init,
+                     "is_intalu_flag_init" : is_intalu_flag_init,
+                     "is_logical_flag_init" : is_logical_flag_init,
+                     "is_and_flag_init" : is_and_flag_init,
+                     "is_or_flag_init" : is_or_flag_init,
                      "invalidate_srcs": invalidate_srcs,
                      "op_class" : op_class})]
             if big_code != "":
@@ -274,6 +306,10 @@ let {{
                           "cond_check" : cond_check,
                           "else_code" : else_code,
                           "cond_control_flag_init" : cond_control_flag_init,
+                          "is_intalu_flag_init" : is_intalu_flag_init,
+                          "is_logical_flag_init" : is_logical_flag_init,
+                          "is_and_flag_init" : is_and_flag_init,
+                          "is_or_flag_init" : is_or_flag_init,
                           "invalidate_srcs": invalidate_srcs,
                           "op_class" : op_class})]
 
@@ -304,6 +340,10 @@ let {{
             cond_check = cls.cond_check
             else_code = cls.else_code
             cond_control_flag_init = cls.cond_control_flag_init
+            is_intalu_flag_init = cls.is_intalu_flag_init
+            is_logical_flag_init = cls.is_logical_flag_init
+            is_and_flag_init = cls.is_and_flag_init
+            is_or_flag_init = cls.is_or_flag_init
             invalidate_srcs = cls.invalidate_srcs
             op_class = cls.op_class
             operand_types = cls.operand_types
@@ -311,15 +351,21 @@ let {{
             # Set up the C++ classes
             mcls.buildCppClasses(cls, name, Name, "", code, big_code,
                     flag_code, cond_check, else_code,
-                    cond_control_flag_init, invalidate_srcs, op_class,
-                    operand_types)
+                    cond_control_flag_init, is_intalu_flag_init,
+                    is_logical_flag_init,
+                    is_and_flag_init, is_or_flag_init,
+                    invalidate_srcs, op_class, operand_types)
 
             # Hook into the microassembler dict
             global microopClasses
             microopClasses[name] = cls
 
             allCode = "|".join((code, flag_code, cond_check, else_code,
-                                cond_control_flag_init, invalidate_srcs))
+                                cond_control_flag_init,
+                                is_intalu_flag_init,
+                                is_logical_flag_init,
+                                is_and_flag_init, is_or_flag_init,
+                                invalidate_srcs))
 
             # If op2 is used anywhere, make register and immediate versions
             # of this code.
@@ -340,6 +386,10 @@ let {{
         cond_check = "true"
         else_code = ";"
         cond_control_flag_init = ""
+        is_intalu_flag_init = ""
+        is_logical_flag_init = ""
+        is_and_flag_init = ""
+        is_or_flag_init = ""
         invalidate_srcs = ""
         op_class = "IntAluOp"
 
@@ -405,6 +455,7 @@ let {{
     class BasicRegOp(RegOp):
         operand_types = (FoldedDestOp, FoldedSrc1Op, Op2)
         abstract = True
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
 
         def __init__(self, dest, src1, src2, flags=None,
                 dataSize="env.dataSize"):
@@ -412,6 +463,7 @@ let {{
 
     class LogicRegOp(BasicRegOp):
         abstract = True
+        is_logical_flag_init = "flags[IsLogical] = true;"
         flag_code = '''
             //Don't have genFlags handle the OF, CF, or AF bits
             uint64_t mask = CFBit | ECFBit | OFBit | AFBit;
@@ -483,6 +535,7 @@ let {{
         big_code = 'DestReg = result = (PSrcReg1 + op2) & mask(dataSize * 8);'
 
     class Or(LogicRegOp):
+        is_or_flag_init = "flags[IsOr] = true;"
         code = '''
             result = PSrcReg1 | op2;
             DestReg = merge(DestReg, dest, result, dataSize);
@@ -514,6 +567,7 @@ let {{
             '''
 
     class And(LogicRegOp):
+        is_and_flag_init = "flags[IsAnd] = true;"
         code = '''
             result = PSrcReg1 & op2;
             DestReg = merge(DestReg, dest, result, dataSize)
@@ -536,6 +590,7 @@ let {{
 
     class Mul1s(WrRegOp):
         op_class = 'IntMultOp'
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
         code = '''
             int64_t hi, low;
             switch (dataSize) {
@@ -570,6 +625,7 @@ let {{
 
     class Mul1u(WrRegOp):
         op_class = 'IntMultOp'
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
 
         code = '''
             uint64_t hi, low;
@@ -603,10 +659,12 @@ let {{
         '''
 
     class Mulel(RdRegOp):
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
         code = 'DestReg = merge(SrcReg1, dest, ProdLow, dataSize);'
         big_code = 'DestReg = ProdLow & mask(dataSize * 8);'
 
     class Muleh(RdRegOp):
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
         def __init__(self, dest, src1=None, flags=None,
                 dataSize="env.dataSize"):
             if not src1:
@@ -618,6 +676,7 @@ let {{
     # One or two bit divide
     class Div1(WrRegOp):
         op_class = 'IntDivOp'
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
 
         code = '''
             //These are temporaries so that modifying them later won't make
@@ -644,6 +703,7 @@ let {{
     # Step divide
     class Div2(BasicRegOp):
         op_class = 'IntDivOp'
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
 
         divCode = '''
             uint64_t dividend = Remainder;
@@ -708,6 +768,7 @@ let {{
         '''
 
     class Divq(RdRegOp):
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
         code = '''
             if (Quotient != signedPick(Quotient, 0, dataSize)) {
                 fault = std::make_shared<DivideError>();
@@ -718,6 +779,7 @@ let {{
         big_code = 'DestReg = Quotient & mask(dataSize * 8);'
 
     class Divr(RdRegOp):
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
         code = 'DestReg = merge(SrcReg1, dest, Remainder, dataSize);'
         big_code = 'DestReg = Remainder & mask(dataSize * 8);'
 
@@ -1622,6 +1684,7 @@ let {{
         '''
 
     class Wrdh(BasicRegOp):
+        is_intalu_flag_init = ""
         code = '''
             SegDescriptor desc = SrcReg1;
 
@@ -1659,6 +1722,7 @@ let {{
         '''
 
     class Wrdl(BasicRegOp):
+        is_intalu_flag_init = ""
         operand_types = (SegDestOp, FoldedSrc1Op, Op2)
         code = '''
             SegDescriptor desc = SrcReg1;

@@ -95,6 +95,8 @@ def template MicroFpOpConstructor {{
                 %(op_class)s, { args... }, data_size, _spm)
     {
         %(set_reg_idx_arr)s;
+        %(is_intalu_flag_init)s;
+        %(is_floatalu_flag_init)s;
         %(constructor)s;
     }
 }};
@@ -109,7 +111,10 @@ let {{
 
     class FpOpMeta(type):
         def buildCppClasses(self, name, Name, suffix, code, big_code,
-                flag_code, cond_check, else_code, op_class, operand_types):
+                flag_code, cond_check, else_code,
+                is_intalu_flag_init,
+                is_floatalu_flag_init,
+                op_class, operand_types):
 
             # Globals to stick the output in
             global header_output
@@ -123,13 +128,17 @@ let {{
             # a version without it and fix up this version to use it.
             if flag_code != "" or cond_check != "true":
                 self.buildCppClasses(name, Name, suffix, code, big_code, "",
-                                     "true", "", op_class, operand_types)
+                                     "true", "", is_intalu_flag_init,
+                                     is_floatalu_flag_init,
+                                     op_class, operand_types)
                 suffix = "Flags" + suffix
 
             # If there is a "big" variant, recursively generate a big version.
             if big_code:
                 self.buildCppClasses(name, Name, suffix + "Big", big_code, "",
                                      flag_code, cond_check, else_code,
+                                     is_intalu_flag_init,
+                                     is_floatalu_flag_init,
                                      op_class, operand_types)
 
             base = "X86ISA::InstOperands<" + \
@@ -144,6 +153,8 @@ let {{
                      "else_code" : else_code,
                      "tag_code" : "FTW = genX87Tags(FTW, TOP, spm);",
                      "top_code" : "TOP = (TOP + spm + 8) % 8;",
+                     "is_intalu_flag_init" : is_intalu_flag_init,
+                     "is_floatalu_flag_init" : is_floatalu_flag_init,
                      "op_class" : op_class})
             iop_top = InstObjParams(name, Name + "Top" + suffix, base,
                     {"code" : code,
@@ -152,6 +163,8 @@ let {{
                      "else_code" : else_code,
                      "tag_code" : ";",
                      "top_code" : "TOP = (TOP + spm + 8) % 8;",
+                     "is_intalu_flag_init" : is_intalu_flag_init,
+                     "is_floatalu_flag_init" : is_floatalu_flag_init,
                      "op_class" : op_class})
             iop = InstObjParams(name, Name + suffix, base,
                     {"code" : code,
@@ -160,6 +173,8 @@ let {{
                      "else_code" : else_code,
                      "tag_code" : ";",
                      "top_code" : ";",
+                     "is_intalu_flag_init" : is_intalu_flag_init,
+                     "is_floatalu_flag_init" : is_floatalu_flag_init,
                      "op_class" : op_class})
 
             # Generate the actual code (finally!)
@@ -190,12 +205,16 @@ let {{
                 flag_code = cls.flag_code
                 cond_check = cls.cond_check
                 else_code = cls.else_code
+                is_intalu_flag_init = cls.is_intalu_flag_init
+                is_floatalu_flag_init = cls.is_floatalu_flag_init
                 op_class = cls.op_class
                 operand_types = cls.operand_types
 
                 # Set up the C++ classes
                 mcls.buildCppClasses(cls, name, Name, "",
-                        code, big_code, flag_code, cond_check, else_code,
+                        code, big_code, flag_code, cond_check,
+                        else_code, is_intalu_flag_init,
+                        is_floatalu_flag_init,
                         op_class, operand_types)
 
                 # Hook into the microassembler dict
@@ -213,6 +232,8 @@ let {{
         flag_code = ""
         cond_check = "true"
         else_code = ";"
+        is_intalu_flag_init = ""
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         op_class = "FloatAddOp"
 
         def __init__(self, *ops, spm=0,
@@ -290,6 +311,7 @@ let {{
         cond_check = "checkCondition(ccFlagBits | cfofBits | dfBit | \
                                      ecfBit | ezfBit, src1)"
         op_class = 'IntAluOp'
+
 
     class Xorfp(Fp3Op):
         code = 'FpDestReg_uqw = FpSrcReg1_uqw ^ FpSrcReg2_uqw;'

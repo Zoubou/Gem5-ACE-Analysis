@@ -61,6 +61,10 @@ def template MediaOpDeclare {{
                     %(op_class)s, { args... }, src_size, dest_size, _ext)
         {
             %(set_reg_idx_arr)s;
+            %(is_floatalu_flag_init)s;
+            %(is_logical_flag_init)s;
+            %(is_and_flag_init)s;
+            %(is_or_flag_init)s;
             %(constructor)s;
         }
 
@@ -76,7 +80,10 @@ let {{
     exec_output = ""
 
     class MediaOpMeta(type):
-        def buildCppClasses(self, name, Name, suffix, code, operand_types):
+        def buildCppClasses(self, name, Name, suffix, code,
+                            is_floatalu_flag_init, is_logical_flag_init,
+                            is_and_flag_init,
+                            is_or_flag_init, operand_types):
 
             # Globals to stick the output in
             global header_output
@@ -98,9 +105,13 @@ let {{
                     typeQual = match.group("typeQual")
                 src2_name = "%sFpSrcReg2%s" % (match.group("prefix"), typeQual)
                 self.buildCppClasses(name, Name, suffix,
-                        matcher.sub(src2_name, code), operand_types)
+                        matcher.sub(src2_name, code), is_floatalu_flag_init,
+                        is_logical_flag_init,
+                        is_and_flag_init, is_or_flag_init, operand_types)
                 self.buildCppClasses(name + "i", Name, suffix + "Imm",
-                        matcher.sub("imm8", code), imm_operand_types)
+                        matcher.sub("imm8", code), is_floatalu_flag_init,
+                        is_logical_flag_init,
+                        is_and_flag_init, is_or_flag_init, imm_operand_types)
                 return
 
             base = "X86ISA::InstOperands<" + \
@@ -111,8 +122,12 @@ let {{
             opt_args = []
             if self.op_class:
                 opt_args.append(self.op_class)
-            iop = InstObjParams(name, Name + suffix, base, {"code" : code},
-                                opt_args)
+            iop = InstObjParams(name, Name + suffix, base, {"code" : code,
+                            "is_floatalu_flag_init" : is_floatalu_flag_init,
+                            "is_logical_flag_init" : is_logical_flag_init,
+                            "is_and_flag_init" : is_and_flag_init,
+                            "is_or_flag_init" : is_or_flag_init},
+                            opt_args)
 
             # Generate the actual code (finally!)
             header_output += MediaOpDeclare.subst(iop)
@@ -133,10 +148,18 @@ let {{
                 cls.className = Name
                 cls.base_mnemonic = name
                 code = cls.code
+                is_floatalu_flag_init = cls.is_floatalu_flag_init
+                is_logical_flag_init = cls.is_logical_flag_init
+                is_and_flag_init = cls.is_and_flag_init
+                is_or_flag_init = cls.is_or_flag_init
                 operand_types = cls.operand_types
 
                 # Set up the C++ classes
-                mcls.buildCppClasses(cls, name, Name, "", code, operand_types)
+                mcls.buildCppClasses(cls, name, Name, "", code,
+                                     is_floatalu_flag_init,
+                                     is_logical_flag_init,
+                                     is_and_flag_init, is_or_flag_init,
+                                     operand_types)
 
                 # Hook into the microassembler dict
                 global microopClasses
@@ -153,6 +176,10 @@ let {{
     class MediaOp(X86Microop, metaclass=MediaOpMeta):
         # This class itself doesn't act as a microop
         abstract = True
+        is_floatalu_flag_init = ""
+        is_logical_flag_init = ""
+        is_and_flag_init = ""
+        is_or_flag_init = ""
 
         def __init__(self, *args, size=None, destSize=None, srcSize=None,
                 ext=None):
@@ -461,6 +488,8 @@ let {{
         def __init__(self, dest, src1, src2):
             super().__init__(dest, src1, src2, size=1)
         op_class = 'SimdAluOp'
+        is_logical_flag_init = "flags[IsLogical] = true;"
+        is_or_flag_init = "flags[IsOr] = true;"
         code = '''
             FpDestReg_uqw = FpSrcReg1_uqw | FpSrcReg2_uqw;
         '''
@@ -469,6 +498,8 @@ let {{
         def __init__(self, dest, src1, src2):
             super().__init__(dest, src1, src2, size=1)
         op_class = 'SimdAluOp'
+        is_logical_flag_init = "flags[IsLogical] = true;"
+        is_and_flag_init = "flags[IsAnd] = true;"
         code = '''
             FpDestReg_uqw = FpSrcReg1_uqw & FpSrcReg2_uqw;
         '''
@@ -477,12 +508,15 @@ let {{
         def __init__(self, dest, src1, src2):
             super().__init__(dest, src1, src2, size=1)
         op_class = 'SimdAluOp'
+        is_logical_flag_init = "flags[IsLogical] = true;"
+        is_and_flag_init = "flags[IsAnd] = true;"
         code = '''
             FpDestReg_uqw = ~FpSrcReg1_uqw & FpSrcReg2_uqw;
         '''
 
     class Mminf(Media3Op):
         op_class = 'SimdFloatCmpOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -534,6 +568,7 @@ let {{
 
     class Mmaxf(Media3Op):
         op_class = 'SimdFloatCmpOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -663,6 +698,7 @@ let {{
 
     class Msqrt(Media2Op):
         op_class = 'SimdFloatSqrtOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -706,6 +742,7 @@ let {{
     # compute approximate reciprocal --- single-precision only
     class Mrcp(Media2Op):
         op_class = 'SimdFloatAluOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -737,6 +774,7 @@ let {{
 
     class Maddf(Media3Op):
         op_class = 'SimdFloatAddOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -784,6 +822,7 @@ let {{
 
     class Msubf(Media3Op):
         op_class = 'SimdFloatAddOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -831,6 +870,7 @@ let {{
 
     class Mmulf(Media3Op):
         op_class = 'SimdFloatMultOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -878,6 +918,7 @@ let {{
 
     class Mdivf(Media3Op):
         op_class = 'SimdFloatDivOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -1183,6 +1224,7 @@ let {{
 
     class Cvtf2i(Media2Op):
         op_class = 'SimdFloatCvtOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -1254,6 +1296,7 @@ let {{
 
     class Cvti2f(Media2Op):
         op_class = 'SimdFloatCvtOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -1313,6 +1356,7 @@ let {{
 
     class Cvtf2f(Media2Op):
         op_class = 'SimdFloatCvtOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -1418,6 +1462,7 @@ let {{
 
     class Mcmpf2r(Media3Op):
         op_class = 'SimdFloatCvtOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -1502,6 +1547,7 @@ let {{
     class Mcmpf2rf(Media2Op):
         operand_types = (FloatSrc1Op, FloatSrc2Op)
         op_class = 'SimdFloatCvtOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = '''
             union floatInt
             {
@@ -1559,6 +1605,7 @@ let {{
         def __init__(self):
             super().__init__(size=2)
         op_class = 'FloatMiscOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = true;"
         code = 'FTW = 0xFFFF;'
 
     class Blend(Media3Op):
