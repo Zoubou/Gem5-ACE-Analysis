@@ -311,6 +311,8 @@ let {{
         cond_check = "checkCondition(ccFlagBits | cfofBits | dfBit | \
                                      ecfBit | ezfBit, src1)"
         op_class = 'IntAluOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = false;"
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
 
 
     class Xorfp(Fp3Op):
@@ -480,6 +482,8 @@ let {{
     class Pop87(Fp0Op):
         code = ''
         op_class = 'IntAluOp'
+        is_floatalu_flag_init = "flags[IsFloatAlu] = false;"
+        is_intalu_flag_init = "flags[IsIntAlu] = true;"
         def __init__(self):
             super().__init__(spm=1)
 }};
