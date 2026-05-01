@@ -211,6 +211,9 @@ class DynInst : public ExecContext, public RefCounted
     /** Values to be written to the destination misc. registers. */
     std::vector<RegVal> _destMiscRegVal;
 
+    std::vector<RegVal> srcRegValues;
+    std::vector<std::vector<uint8_t>> srcRegValuesLarge;
+
     /** Indexes of the destination misc. registers. They are needed to defer
      * the write accesses to the misc. registers until the commit stage, when
      * the instruction is out of its speculative state.
@@ -1165,6 +1168,76 @@ class DynInst : public ExecContext, public RefCounted
     // long as these methods don't copy the pointer into any long-term
     // storage (which is pretty hard to imagine they would have reason
     // to do).
+    void
+    performLogicalMasking(){
+
+        if (!isAnd() && !isOr())
+            return;
+
+        std::vector<bool> regFirstRead(numSrcRegs(), false);
+        bool anyFirstRead = false;
+
+        for (int idx = 0; idx < numSrcRegs(); idx++) {
+            const PhysRegIdPtr reg = renamedSrcIdx(idx);
+            if (reg->is(InvalidRegClass))
+                continue;
+
+            if (!reg->getHasBeenRead()) {
+                anyFirstRead = true;
+                regFirstRead[idx] = true;
+                reg->setHasBeenRead(true);
+            }
+        }
+
+        if (!anyFirstRead)
+            return;
+
+        for (int idx = 0; idx < numSrcRegs(); idx++) {
+            const PhysRegIdPtr reg = renamedSrcIdx(idx);
+            if (regFirstRead[idx]) {
+                int maskIdx = 1 - idx;
+
+                int totalBits = reg->regClass().regBytes() * 8;
+                int aceBits = 0;
+
+                // Check if the OTHER register (the mask) is a "Large" register
+                const RegClassType maskType =
+                      renamedSrcIdx(maskIdx)->classValue();
+                bool maskIsLarge = (maskType == VecRegClass ||
+                                    maskType == VecPredRegClass ||
+                                    maskType == MatRegClass);
+
+                if (isAnd()) {
+                    if (maskIsLarge) {
+                        // Count bits byte-by-byte in the large register
+                        for (uint8_t byte : srcRegValuesLarge[maskIdx]) {
+                            aceBits += __builtin_popcount(byte);
+                        }
+                    } else {
+                        // Standard 64-bit popcount
+                        aceBits = __builtin_popcountll(srcRegValues[maskIdx]);
+                    }
+                } else if (isOr()) {
+                    if (maskIsLarge) {
+                        // For OR, bit is ACE if mask is 0.
+                        // So we count the '1's in the INVERTED byte.
+                        for (uint8_t byte : srcRegValuesLarge[maskIdx]) {
+                            aceBits += __builtin_popcount(
+                                static_cast<uint8_t>(~byte));
+                        }
+                    } else {
+                        // Standard 64-bit popcount for OR
+                        uint64_t maskLimit = (totalBits >= 64) ?
+                                             ~0ULL : (1ULL << totalBits) - 1;
+                        aceBits = __builtin_popcountll(
+                                  ~srcRegValues[maskIdx] & maskLimit);
+                    }
+                }
+            }
+        }
+
+    }
+
     uint16_t
     getInstTypeFlags() const {
         uint16_t flags = 0;
@@ -1190,7 +1263,13 @@ class DynInst : public ExecContext, public RefCounted
         const PhysRegIdPtr reg = renamedSrcIdx(idx);
         if (reg->is(InvalidRegClass))
             return 0;
-        return cpu->getReg(reg, getInstTypeFlags(), threadNumber);
+        RegVal val = cpu->getReg(reg, getInstTypeFlags(),
+                                 threadNumber);
+
+        if (idx < (int)srcRegValues.size()) {
+            srcRegValues[idx] = val;
+        }
+        return val;
     }
 
     void
@@ -1200,6 +1279,19 @@ class DynInst : public ExecContext, public RefCounted
         if (reg->is(InvalidRegClass))
             return;
         cpu->getReg(reg, val, getInstTypeFlags(), threadNumber);
+
+        if (idx >= 0 && static_cast<size_t>(idx) < srcRegValuesLarge.size()) {
+        // 3. Get the size of this specific register in bytes
+        size_t bytes = reg->regClass().regBytes();
+
+        // 4. Copy the data from the memory address 'val' into our vector
+        // .assign() clears the vector and resizes it to 'bytes',
+        // then copies the data from the pointer.
+        srcRegValuesLarge[idx].assign(
+            static_cast<uint8_t*>(val),
+            static_cast<uint8_t*>(val) + bytes
+        );
+    }
     }
 
     void *
