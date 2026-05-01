@@ -63,6 +63,9 @@ DynInst::DynInst(const Arrays &arrays, const StaticInstPtr &static_inst,
 {
     std::fill(_readySrcIdx, _readySrcIdx + (numSrcs() + 7) / 8, 0);
 
+    srcRegValues.resize(staticInst->numSrcRegs(), 0);
+    srcRegValuesLarge.resize(staticInst->numSrcRegs());
+
     status.reset();
 
     instFlags.reset();
