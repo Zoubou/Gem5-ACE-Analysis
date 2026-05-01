@@ -185,6 +185,9 @@ class PhysRegFile
         phys_reg->setTick(curTick());
         phys_reg->setEventRead();
 
+        if (!(instTypes & (PhysRegId::InstTypeLogical)))
+          phys_reg->setHasBeenRead(true);
+
         RegVal val;
         switch (type) {
           case IntRegClass:
@@ -226,6 +229,9 @@ class PhysRegFile
 
             phys_reg->setTick(curTick());
             phys_reg->setEventRead();
+
+            if (!(instTypes & (PhysRegId::InstTypeLogical)))
+              phys_reg->setHasBeenRead(true);
         }
 
         switch (type) {
@@ -269,6 +275,7 @@ class PhysRegFile
 
         phys_reg->setTick(curTick());
         phys_reg->setEventWrite();
+        phys_reg->setHasBeenRead(false);
 
         switch (type) {
           case VecRegClass:
@@ -290,6 +297,7 @@ class PhysRegFile
 
         phys_reg->setTick(curTick());
         phys_reg->setEventWrite();
+        phys_reg->setHasBeenRead(false);
 
         switch (type) {
           case InvalidRegClass:
@@ -329,6 +337,7 @@ class PhysRegFile
             type == MatRegClass) {
             phys_reg->setTick(curTick());
             phys_reg->setEventWrite();
+            phys_reg->setHasBeenRead(false);
         }
 
         switch (type) {

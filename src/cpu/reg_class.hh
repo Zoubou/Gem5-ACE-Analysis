@@ -470,6 +470,7 @@ class PhysRegId : private RegId
     };
     enum Events lastEvent;
     Tick instTypeAceTicks[InstTypeNum];
+    bool hasBeenRead;
 
   public:
     explicit PhysRegId()
@@ -480,7 +481,8 @@ class PhysRegId : private RegId
           ACETicks(0),
           fillTimeTick(0),
           lastEvent(idle),
-          instTypeAceTicks{}
+          instTypeAceTicks{},
+          hasBeenRead(false)
     {}
 
     /** Scalar PhysRegId constructor. */
@@ -494,7 +496,8 @@ class PhysRegId : private RegId
           ACETicks(0),
           fillTimeTick(0),
           lastEvent(idle),
-          instTypeAceTicks{}
+          instTypeAceTicks{},
+          hasBeenRead(false)
     {}
 
     /** Visible RegId methods */
@@ -644,6 +647,14 @@ class PhysRegId : private RegId
     void resetInstTypeAceTicks() {
         for (int i = 0; i < InstTypeNum; i++)
             instTypeAceTicks[i] = 0;
+    }
+
+    bool getHasBeenRead() const {
+        return hasBeenRead;
+    }
+
+    void setHasBeenRead(bool has_been_read) {
+        hasBeenRead = has_been_read;
     }
 };
 
