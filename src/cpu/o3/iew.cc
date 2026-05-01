@@ -1184,6 +1184,10 @@ IEW::executeInsts()
             continue;
         }
 
+        if (inst->isLogical()) {
+            inst->performLogicalMasking();
+        }
+
         Fault fault = NoFault;
 
         // Execute instruction.
