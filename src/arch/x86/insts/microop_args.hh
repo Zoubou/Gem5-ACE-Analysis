@@ -305,6 +305,10 @@ struct Imm8Op
     {
         ccprintf(os, "%#x", imm8);
     }
+
+    gem5::StaticInst::ImmOperand getImm8Val() const {
+        return { static_cast<RegVal>(imm8), 1 };
+    }
 };
 
 struct Imm64Op
@@ -320,6 +324,10 @@ struct Imm64Op
     print(std::ostream &os) const
     {
         ccprintf(os, "%#x", imm64);
+    }
+
+    gem5::StaticInst::ImmOperand getImm64Val() const {
+        return { static_cast<RegVal>(imm64), 8 };
     }
 };
 
@@ -426,6 +434,17 @@ class InstOperands : public Base, public Operands...
         GEM5_FOR_EACH_IN_PACK(ccprintf(response, count++ ? ", " : ""),
                               Operands::print(response));
         return response.str();
+    }
+
+    std::vector<gem5::StaticInst::ImmOperand> getImmediates() const override {
+        std::vector<gem5::StaticInst::ImmOperand> imms;
+        if constexpr (std::is_base_of_v<Imm8Op, InstOperands>) {
+            imms.push_back(Imm8Op::getImm8Val());
+        }
+        if constexpr (std::is_base_of_v<Imm64Op, InstOperands>) {
+            imms.push_back(Imm64Op::getImm64Val());
+        }
+        return imms;
     }
 };
 
