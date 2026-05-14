@@ -62,6 +62,7 @@
 #include "cpu/reg_class.hh"
 #include "cpu/static_inst.hh"
 #include "cpu/translation.hh"
+#include "debug/ACEAnalysis.hh"
 #include "debug/HtmCpu.hh"
 
 namespace gem5
@@ -213,6 +214,7 @@ class DynInst : public ExecContext, public RefCounted
 
     std::vector<RegVal> srcRegValues;
     std::vector<std::vector<uint8_t>> srcRegValuesLarge;
+    std::vector<Tick> srcRegReadDurations;
 
     /** Indexes of the destination misc. registers. They are needed to defer
      * the write accesses to the misc. registers until the commit stage, when
@@ -1169,73 +1171,205 @@ class DynInst : public ExecContext, public RefCounted
     // storage (which is pretty hard to imagine they would have reason
     // to do).
     void
-    performLogicalMasking(){
+    performLogicalMasking() {
 
-        if (!isAnd() && !isOr())
-            return;
+        int numSrcs = numSrcRegs();
 
-        std::vector<bool> regFirstRead(numSrcRegs(), false);
-        bool anyFirstRead = false;
+        std::vector<bool> regFirstRead(numSrcs, false);
+        std::vector<gem5::StaticInst::ImmOperand> imms =
+                             staticInst->getImmediates();
 
-        for (int idx = 0; idx < numSrcRegs(); idx++) {
+        if (numSrcs < 1 || (numSrcs < 2 && imms.empty())) return;
+
+        // 1. Identify which registers are being read for the first time
+        for (int idx = 0; idx < numSrcs; idx++) {
             const PhysRegIdPtr reg = renamedSrcIdx(idx);
-            if (reg->is(InvalidRegClass))
-                continue;
+            if (reg->is(InvalidRegClass)) continue;
 
             if (!reg->getHasBeenRead()) {
-                anyFirstRead = true;
                 regFirstRead[idx] = true;
-                reg->setHasBeenRead(true);
             }
         }
 
-        if (!anyFirstRead)
-            return;
+        // 2. Process each register
+        for (int idx = 0; idx < numSrcs; idx++) {
 
-        for (int idx = 0; idx < numSrcRegs(); idx++) {
             const PhysRegIdPtr reg = renamedSrcIdx(idx);
-            if (regFirstRead[idx]) {
-                int maskIdx = 1 - idx;
+            if (reg->is(CCRegClass) || reg->is(MiscRegClass)) {
+                continue;
+            }
+            size_t regBytes = reg->regClass().regBytes();
 
-                int totalBits = reg->regClass().regBytes() * 8;
+            if (regFirstRead[idx] && (isAnd() || isOr())) {
                 int aceBits = 0;
-
-                // Check if the OTHER register (the mask) is a "Large" register
-                const RegClassType maskType =
-                      renamedSrcIdx(maskIdx)->classValue();
-                bool maskIsLarge = (maskType == VecRegClass ||
-                                    maskType == VecPredRegClass ||
-                                    maskType == MatRegClass);
+                bool isLarge = (reg->classValue() == VecRegClass ||
+                                reg->classValue() == VecPredRegClass ||
+                                reg->classValue() == MatRegClass);
 
                 if (isAnd()) {
-                    if (maskIsLarge) {
-                        // Count bits byte-by-byte in the large register
-                        for (uint8_t byte : srcRegValuesLarge[maskIdx]) {
-                            aceBits += __builtin_popcount(byte);
+                    // --- AND LOGIC ---
+                    if (!isLarge) {
+                        RegVal combinedMask = ~0ULL; // Start with all 1s
+                        /*DPRINTF(ACEAnalysis,
+                                "[LogicalMask] inst [sn:%llu] %s
+                                numSrcs=%d numImms=%llu\n",
+                                seqNum,
+                                isAnd() ? "AND" : "OR",
+                                numSrcs,
+                                (uint64_t)imms.size());*/
+                        for (int mIdx = 0; mIdx < numSrcs; mIdx++) {
+                            const PhysRegIdPtr mReg = renamedSrcIdx(mIdx);
+                            /*DPRINTF(ACEAnalysis, "
+                            src[%d] class=%-8s val=0x%016llx "
+                                    "isCC=%d isMisc=%d
+                                    isInvalid=%d firstRead=%d\n",
+                                    mIdx,
+                                    mReg->className(),
+                                    (unsigned long long)srcRegValues[mIdx],
+                                    mReg->is(CCRegClass),
+                                    mReg->is(MiscRegClass),
+                                    mReg->is(InvalidRegClass),
+                                    (int)regFirstRead[mIdx]);*/
+                            if (mIdx == idx || mReg->is(CCRegClass) ||
+                                mReg->is(MiscRegClass) ||
+                                mReg->is(InvalidRegClass)) continue;
+                            combinedMask &= srcRegValues[mIdx];
                         }
+
+                        for (const auto &imm : imms) {
+                            DPRINTF(ACEAnalysis,
+                            "Found Immediate: 0x%lx\n", imm.value);
+                            RegVal neutralizedImm = (imm.bytes >= 8)
+                                ? imm.value
+                                : imm.value | ~((1ULL << (imm.bytes * 8)) - 1);
+                            combinedMask &= neutralizedImm;
+                        }
+
+                        uint64_t maskLimit = (regBytes >= 8) ?
+                        ~0ULL : (1ULL << (regBytes * 8)) - 1;
+                        aceBits = __builtin_popcountll(combinedMask
+                                                       & maskLimit);
                     } else {
-                        // Standard 64-bit popcount
-                        aceBits = __builtin_popcountll(srcRegValues[maskIdx]);
+                        std::vector<uint8_t> combinedMask(regBytes, 0xFF);
+                        for (int mIdx = 0; mIdx < numSrcs; mIdx++) {
+                            const PhysRegIdPtr mReg = renamedSrcIdx(mIdx);
+                            if (mIdx == idx || mReg->is(CCRegClass) ||
+                                mReg->is(MiscRegClass) ||
+                                mReg->is(InvalidRegClass)) continue;
+                            for (size_t b = 0; b < regBytes; b++) {
+                                combinedMask[b] &= srcRegValuesLarge[mIdx][b];
+                            }
+                        }
+
+                        for (const auto &imm : imms) {
+                            DPRINTF(ACEAnalysis,
+                            "Found Immediate: 0x%lx\n", imm.value);
+                            for (size_t b = 0; b < regBytes; b++) {
+                                if (b < imm.bytes) {
+                                    combinedMask[b] &= static_cast<uint8_t>(
+                                        imm.value >> (b * 8));
+                                }
+                            }
+                        }
+
+                        for (uint8_t byte : combinedMask)
+                            aceBits += __builtin_popcount(byte);
                     }
-                } else if (isOr()) {
-                    if (maskIsLarge) {
-                        // For OR, bit is ACE if mask is 0.
-                        // So we count the '1's in the INVERTED byte.
-                        for (uint8_t byte : srcRegValuesLarge[maskIdx]) {
+                }
+                else if (isOr()) {
+                    // --- OR LOGIC ---
+                    if (!isLarge) {
+                        RegVal combinedMask = 0ULL; // Start with all 0s
+                        /*DPRINTF(ACEAnalysis,
+                        "[LogicalMask] inst [sn:%llu] %s
+                        numSrcs=%d numImms=%llu\n",
+                                seqNum,
+                                isAnd() ? "AND" : "OR",
+                                numSrcs,
+                                (uint64_t)imms.size());*/
+                        for (int mIdx = 0; mIdx < numSrcs; mIdx++) {
+                            const PhysRegIdPtr mReg = renamedSrcIdx(mIdx);
+                            /*DPRINTF(ACEAnalysis, "  src[%d]
+                            class=%-8s val=0x%016llx "
+                            "isCC=%d isMisc=%d isInvalid=%d firstRead=%d\n",
+                                    mIdx,
+                                    mReg->className(),
+                                    (unsigned long long)srcRegValues[mIdx],
+                                    mReg->is(CCRegClass),
+                                    mReg->is(MiscRegClass),
+                                    mReg->is(InvalidRegClass),
+                                    (int)regFirstRead[mIdx]);*/
+                            if (mIdx == idx || mReg->is(CCRegClass) ||
+                                mReg->is(MiscRegClass) ||
+                                mReg->is(InvalidRegClass)) continue;
+                            combinedMask |= srcRegValues[mIdx];
+                        }
+
+                        for (const auto &imm : imms) {
+                            DPRINTF(ACEAnalysis,
+                            "Found Immediate: 0x%lx\n", imm.value);
+                            RegVal neutralizedImm = (imm.bytes >= 8)
+                                ? imm.value
+                                : imm.value & ((1ULL << (imm.bytes * 8)) - 1);
+                            combinedMask |= neutralizedImm;
+                        }
+
+                        uint64_t maskLimit = (regBytes >= 8) ?
+                        ~0ULL : (1ULL << (regBytes * 8)) - 1;
+
+                        aceBits = __builtin_popcountll(~combinedMask
+                                                        & maskLimit);
+                    } else {
+                        std::vector<uint8_t> combinedMask(regBytes, 0x00);
+                        for (int mIdx = 0; mIdx < numSrcs; mIdx++) {
+                            const PhysRegIdPtr mReg = renamedSrcIdx(mIdx);
+                            if (mIdx == idx || mReg->is(CCRegClass) ||
+                                mReg->is(MiscRegClass) ||
+                                mReg->is(InvalidRegClass)) continue;
+                            for (size_t b = 0; b < regBytes; b++) {
+                                combinedMask[b] |= srcRegValuesLarge[mIdx][b];
+                            }
+                        }
+
+                        for (const auto &imm : imms) {
+                            DPRINTF(ACEAnalysis,
+                            "Found Immediate: 0x%lx\n", imm.value);
+                            for (size_t b = 0; b < regBytes; b++) {
+                                if (b < imm.bytes) {
+                                    combinedMask[b] |= static_cast<uint8_t>(
+                                        imm.value >> (b * 8));
+                                }
+                            }
+                        }
+
+                        for (uint8_t byte : combinedMask) {
                             aceBits += __builtin_popcount(
                                 static_cast<uint8_t>(~byte));
                         }
-                    } else {
-                        // Standard 64-bit popcount for OR
-                        uint64_t maskLimit = (totalBits >= 64) ?
-                                             ~0ULL : (1ULL << totalBits) - 1;
-                        aceBits = __builtin_popcountll(
-                                  ~srcRegValues[maskIdx] & maskLimit);
                     }
                 }
+                /*DPRINTF(ACEAnalysis, "Masking Result for
+                          Reg %d: %d ACE bits\n",
+                          idx, aceBits);*/
+
+                Tick curRegDuration = srcRegReadDurations[idx];
+                reg->addTotalAceValue(curRegDuration * aceBits);
+            } else {
+                /*DPRINTF(ACEAnalysis,
+                "Source Reg Index %d (%s) Value: 0x%lx "
+                "[NOT_AND_OR or NOT_FIRST_READ] regBytes=%llu
+                isAnd=%d isOr=%d firstRead=%d\n",
+                idx, reg->regClass().name(), srcRegValues[idx],
+                (uint64_t)regBytes,
+                (int)isAnd(), (int)isOr(),
+                (int)regFirstRead[idx]);*/
+
+
+                Tick curRegDuration = srcRegReadDurations[idx];
+                size_t regBits = reg->regClass().regBytes() * 8;
+                reg->addTotalAceValue(curRegDuration * regBits);
             }
         }
-
     }
 
     uint16_t
@@ -1263,11 +1397,16 @@ class DynInst : public ExecContext, public RefCounted
         const PhysRegIdPtr reg = renamedSrcIdx(idx);
         if (reg->is(InvalidRegClass))
             return 0;
-        RegVal val = cpu->getReg(reg, getInstTypeFlags(),
-                                 threadNumber);
+
+        // Capture duration BEFORE getReg() updates the tick
+        Tick durationBeforeRead = curTick() - reg->getLastTick();
+
+        RegVal val = cpu->getReg(reg, getInstTypeFlags(), threadNumber);
 
         if (idx < (int)srcRegValues.size()) {
             srcRegValues[idx] = val;
+            // Use the pre-captured duration, not post-getReg()
+            srcRegReadDurations[idx] = durationBeforeRead;
         }
         return val;
     }
@@ -1278,20 +1417,20 @@ class DynInst : public ExecContext, public RefCounted
         const PhysRegIdPtr reg = renamedSrcIdx(idx);
         if (reg->is(InvalidRegClass))
             return;
+
+        // Capture duration BEFORE getReg() updates the tick
+        Tick durationBeforeRead = curTick() - reg->getLastTick();
+
         cpu->getReg(reg, val, getInstTypeFlags(), threadNumber);
 
         if (idx >= 0 && static_cast<size_t>(idx) < srcRegValuesLarge.size()) {
-        // 3. Get the size of this specific register in bytes
-        size_t bytes = reg->regClass().regBytes();
-
-        // 4. Copy the data from the memory address 'val' into our vector
-        // .assign() clears the vector and resizes it to 'bytes',
-        // then copies the data from the pointer.
-        srcRegValuesLarge[idx].assign(
-            static_cast<uint8_t*>(val),
-            static_cast<uint8_t*>(val) + bytes
-        );
-    }
+            size_t bytes = reg->regClass().regBytes();
+            srcRegReadDurations[idx] = durationBeforeRead;
+            srcRegValuesLarge[idx].assign(
+                static_cast<uint8_t*>(val),
+                static_cast<uint8_t*>(val) + bytes
+            );
+        }
     }
 
     void *
@@ -1321,6 +1460,10 @@ class DynInst : public ExecContext, public RefCounted
             return;
         cpu->setReg(reg, val, threadNumber);
         setResult(reg->regClass(), val);
+    }
+
+    std::vector<gem5::StaticInst::ImmOperand> getImmediates() const{
+        return staticInst->getImmediates();
     }
 };
 
