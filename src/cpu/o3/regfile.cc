@@ -62,6 +62,10 @@ PhysRegFile::RegFileStats::RegFileStats(statistics::Group *parent,
                "ACE Ticks by Instruction Type"),
       ADD_STAT(numRegs, statistics::units::Count::get(),
                "Number of registers"),
+      ADD_STAT(totalAceValue, statistics::units::Count::get(),
+               "Total ACE Value"),
+      ADD_STAT(numBits, statistics::units::Count::get(),
+               "Number of bits"),
       ADD_STAT(AVF, statistics::units::Ratio::get(), "Register AVF")
 {
     const int NumRegClasses = CCRegClass + 1;
@@ -70,6 +74,8 @@ PhysRegFile::RegFileStats::RegFileStats(statistics::Group *parent,
     totalResidencyTicks.init(NumRegClasses);
     instTypeAceTicks.init(PhysRegId::InstTypeNum);
     numRegs.init(NumRegClasses);
+    totalAceValue.init(NumRegClasses);
+    numBits.init(NumRegClasses);
 
     const char *reg_names[] = {"Int",     "Float", "Vec", "VecElem",
                                "VecPred", "Mat",   "CC",  "Misc"};
@@ -81,8 +87,10 @@ PhysRegFile::RegFileStats::RegFileStats(statistics::Group *parent,
     for (int i = 0; i < NumRegClasses; ++i) {
         if (i < (sizeof(reg_names) / sizeof(char *))) {
             totalAceTicks.subname(i, reg_names[i]);
+            totalAceValue.subname(i, reg_names[i]);
             totalResidencyTicks.subname(i, reg_names[i]);
             numRegs.subname(i, reg_names[i]);
+            numBits.subname(i, reg_names[i]);
             AVF.subname(i, reg_names[i]);
         }
     }
@@ -94,7 +102,7 @@ PhysRegFile::RegFileStats::RegFileStats(statistics::Group *parent,
     }
 
     // Element-wise vector division for the formula
-    AVF = totalAceTicks / (numRegs * simTicks);
+    AVF = totalAceValue / (numRegs * numBits * simTicks);
     AVF.precision(6);
 
     // Hide zero entries to keep the stats file clean
@@ -102,6 +110,8 @@ PhysRegFile::RegFileStats::RegFileStats(statistics::Group *parent,
     totalResidencyTicks.flags(statistics::nozero);
     instTypeAceTicks.flags(statistics::nozero);
     numRegs.flags(statistics::nozero);
+    totalAceValue.flags(statistics::nozero);
+    numBits.flags(statistics::nozero);
     AVF.flags(statistics::nozero | statistics::nonan);
 }
 
@@ -117,6 +127,14 @@ PhysRegFile::RegFileStats::preDumpStats()
     numRegs[VecPredRegClass] = rf->numPhysicalVecPredRegs;
     numRegs[MatRegClass] = rf->numPhysicalMatRegs;
     numRegs[CCRegClass] = rf->numPhysicalCCRegs;
+
+    numBits[IntRegClass] = rf->intRegFile.regBytes() * 8;
+    numBits[FloatRegClass] = rf->floatRegFile.regBytes() * 8;
+    numBits[VecRegClass] = rf->vectorRegFile.regBytes() * 8;
+    numBits[VecElemClass] = rf->vectorElemRegFile.regBytes() * 8;
+    numBits[VecPredRegClass] = rf->vecPredRegFile.regBytes() * 8;
+    numBits[MatRegClass] = rf->matRegFile.regBytes() * 8;
+    numBits[CCRegClass] = rf->ccRegFile.regBytes() * 8;
 }
 
 PhysRegFile::PhysRegFile(unsigned _numPhysicalIntRegs,
