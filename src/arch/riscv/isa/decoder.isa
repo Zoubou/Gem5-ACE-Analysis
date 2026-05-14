@@ -280,7 +280,7 @@ decode QUADRANT default Unknown::unknown() {
                         imm |= ~((uint64_t)0x1F);
                 }}, {{
                     Rp1 = rvSext(Rp1 & imm);
-                }}, uint64_t);
+                }}, uint64_t, IsLogical, IsAnd);
             }
             format CompressedROp {
                 0x3: decode CFUNCT1 {
@@ -293,10 +293,10 @@ decode QUADRANT default Unknown::unknown() {
                         }});
                         0x2: c_or({{
                             Rp1 = rvSext(Rp1 | Rp2);
-                        }});
+                        }}, IsLogical, IsOr);
                         0x3: c_and({{
                             Rp1 = rvSext(Rp1 & Rp2);
-                        }});
+                        }}, IsLogical, IsAnd);
                     }
                     0x1: decode CFUNCT2LOW {
                         0x0: decode RVTYPE {
@@ -1333,6 +1333,16 @@ decode QUADRANT default Unknown::unknown() {
             }
         }
 
+        0x02: decode FUNCT3 {
+            0x01: decode FUNCT7 {
+                format ROp {
+                    0x10: maxx({{
+                        Rd = (Rs1_ud > Rs2_ud) ? Rs1_ud : Rs2_ud;
+                    }});
+                }
+            }
+        }
+
         0x03: decode FUNCT3 {
             format FenceOp {
                 0x0: fence({{
@@ -1514,7 +1524,7 @@ decode QUADRANT default Unknown::unknown() {
                         }
                         uint64_t index = imm & rvSelect(32 - 1, 64 - 1);
                         Rd = rvSext(Rs1 & (~(UINT64_C(1) << index)));
-                    }}, imm_type = uint64_t, imm_code = {{ imm = SHAMT6; }});
+                    }}, uint64_t, {{ imm = SHAMT6; }}, IsLogical, IsAnd);
                     0x0d: binvi({{
                         if (rvSelect((bool)SHAMT6BIT5, false)) {
                             return std::make_shared<IllegalInstFault>(
@@ -1585,7 +1595,7 @@ decode QUADRANT default Unknown::unknown() {
                         result |= (Rs1<55:48> ? UINT64_C(0xff) : 0x0) << 48;
                         result |= (Rs1<63:56> ? UINT64_C(0xff) : 0x0) << 56;
                         Rd = rvSext(result);
-                    }}, imm_type = uint64_t, imm_code = {{ imm = SHAMT6; }});
+                    }}, uint64_t, {{ imm = SHAMT6; }}, IsLogical, IsOr);
                     0x8: srai({{
                         if (rvSelect((bool)SHAMT6BIT5, false)) {
                             return std::make_shared<IllegalInstFault>(
@@ -1661,11 +1671,12 @@ decode QUADRANT default Unknown::unknown() {
                     }
                     default: ori({{
                         Rd = rvSext(Rs1 | imm);
-                    }}, uint64_t);
+                    }}, uint64_t, {{ imm = sext<12>(IMM12); }}, IsLogical,
+                                                                IsOr);
                 }
                 0x7: andi({{
                     Rd = rvSext(Rs1 & imm);
-                }}, uint64_t);
+                }}, uint64_t, {{ imm = sext<12>(IMM12); }}, IsLogical, IsAnd);
             }
         }
 
@@ -2113,7 +2124,7 @@ decode QUADRANT default Unknown::unknown() {
                                       uint32_t new_data = mem_data | a;
                                       *b = htole(new_data);
                                   });
-                }}, mem_flags=ATOMIC_RETURN_OP);
+                }}, mem_flags=ATOMIC_RETURN_OP, inst_flags=[IsLogical,IsOr]);
                 0xc: AtomicMemOp::amoand_w({{
                     Rd_sd = Mem_sw;
                 }}, {{
@@ -2124,7 +2135,7 @@ decode QUADRANT default Unknown::unknown() {
                                       uint32_t new_data = mem_data & a;
                                       *b = htole(new_data);
                                   });
-                }}, mem_flags=ATOMIC_RETURN_OP);
+                }}, mem_flags=ATOMIC_RETURN_OP, inst_flags=[IsLogical,IsAnd]);
                 0x10: AtomicMemOp::amomin_w({{
                     Rd_sd = Mem_sw;
                 }}, {{
@@ -2219,7 +2230,8 @@ decode QUADRANT default Unknown::unknown() {
                                          uint64_t new_data = mem_data | a;
                                          *b = htole(new_data);
                                      });
-                    }}, mem_flags=ATOMIC_RETURN_OP);
+                    }}, mem_flags=ATOMIC_RETURN_OP, inst_flags=
+                        [IsLogical,IsOr]);
                     0xc: AtomicMemOp::amoand_d({{
                         Rd_sd = Mem_sd;
                     }}, {{
@@ -2230,7 +2242,8 @@ decode QUADRANT default Unknown::unknown() {
                                          uint64_t new_data = mem_data & a;
                                          *b = htole(new_data);
                                      });
-                    }}, mem_flags=ATOMIC_RETURN_OP);
+                    }}, mem_flags=ATOMIC_RETURN_OP, inst_flags=
+                        [IsLogical,IsAnd]);
                     0x10: AtomicMemOp::amomin_d({{
                         Rd_sd = Mem_sd;
                     }}, {{
@@ -2427,7 +2440,7 @@ decode QUADRANT default Unknown::unknown() {
                     0x24: bclr({{
                         Rs2 &= rvSelect(32 - 1, 64 - 1);
                         Rd = rvSext(Rs1 & (~(UINT64_C(1) << Rs2)));
-                    }});
+                    }}, IsLogical, IsAnd);
                     0x30: rol({{
                         uint64_t xlen = rvSelect(32, 64);
                         int shamt = Rs2 & (xlen - 1);
@@ -2567,7 +2580,7 @@ decode QUADRANT default Unknown::unknown() {
                 0x6: decode FUNCT7 {
                     0x0: or({{
                         Rd = rvSext(Rs1 | Rs2);
-                    }});
+                    }}, IsLogical, IsOr);
                     0x1: rem({{
                         if (machInst.rv_type == RV32) {
                             Rd_sd = rem<int32_t>(Rs1, Rs2);
@@ -2583,12 +2596,12 @@ decode QUADRANT default Unknown::unknown() {
                     }});
                     0x20: orn({{
                         Rd = rvSext(Rs1 | (~Rs2));
-                    }});
+                    }}, IsLogical, IsOr);
                 }
                 0x7: decode FUNCT7 {
                     0x0: and({{
                         Rd = rvSext(Rs1 & Rs2);
-                    }});
+                    }}, IsLogical, IsAnd);
                     0x1: remu({{
                         if (machInst.rv_type == RV32) {
                             Rd = (int32_t)remu<uint32_t>(Rs1, Rs2);
@@ -2608,7 +2621,7 @@ decode QUADRANT default Unknown::unknown() {
                     }});
                     0x20: andn({{
                         Rd = rvSext(Rs1 & (~Rs2));
-                    }});
+                    }}, IsLogical, IsAnd);
                 }
             }
         }
@@ -3703,7 +3716,7 @@ decode QUADRANT default Unknown::unknown() {
                     }}, OPIVV, SimdAddOp);
                     0x1: vandn_vv({{
                         Vd_vu[i] = Vs2_vu[i] & (~Vs1_vu[i]);
-                    }}, OPIVV, SimdAluOp);
+                    }}, OPIVV, SimdAluOp, IsLogical, IsAnd);
                     0x2: vsub_vv({{
                         Vd_vu[i] = Vs2_vu[i] - Vs1_vu[i];
                     }}, OPIVV, SimdAddOp);
@@ -3725,10 +3738,10 @@ decode QUADRANT default Unknown::unknown() {
                     }}, OPIVV, SimdCmpOp);
                     0x9: vand_vv({{
                         Vd_vu[i] = Vs2_vu[i] & Vs1_vu[i];
-                    }}, OPIVV, SimdAluOp);
+                    }}, OPIVV, SimdAluOp, IsLogical, IsAnd);
                     0xa: vor_vv({{
                         Vd_vu[i] = Vs2_vu[i] | Vs1_vu[i];
-                    }}, OPIVV, SimdAluOp);
+                    }}, OPIVV, SimdAluOp, IsLogical, IsOr);
                     0xb: vxor_vv({{
                         Vd_vu[i] = Vs2_vu[i] ^ Vs1_vu[i];
                     }}, OPIVV, SimdAluOp);
@@ -4332,11 +4345,11 @@ decode QUADRANT default Unknown::unknown() {
                     0x1: vredand_vs({{
                         Vd_vi[0] =
                             reduce_loop(std::bit_and<vi>(), Vs1_vi, Vs2_vi);
-                    }}, OPMVV, SimdReduceAluOp);
+                    }}, OPMVV, SimdReduceAluOp, IsLogical, IsAnd);
                     0x2: vredor_vs({{
                         Vd_vi[0] =
                             reduce_loop(std::bit_or<vi>(), Vs1_vi, Vs2_vi);
-                    }}, OPMVV, SimdReduceAluOp);
+                    }}, OPMVV, SimdReduceAluOp, IsLogical, IsOr);
                     0x3: vredxor_vs({{
                         Vd_vi[0] =
                             reduce_loop(std::bit_xor<vi>(), Vs1_vi, Vs2_vi);
@@ -4569,15 +4582,15 @@ decode QUADRANT default Unknown::unknown() {
                     0x18: vmandn_mm({{
                         Vd_ub[i/8] = ASSIGN_VD_BIT(i,
                             elem_mask(Vs2_vu, i) & !elem_mask(Vs1_vu, i));
-                    }}, OPMVV, SimdAluOp);
+                    }}, OPMVV, SimdAluOp, IsLogical, IsAnd);
                     0x19: vmand_mm({{
                         Vd_ub[i/8] = ASSIGN_VD_BIT(i,
                             elem_mask(Vs2_vu, i) & elem_mask(Vs1_vu, i));
-                    }}, OPMVV, SimdAluOp);
+                    }}, OPMVV, SimdAluOp, IsLogical, IsAnd);
                     0x1a: vmor_mm({{
                         Vd_ub[i/8] = ASSIGN_VD_BIT(i,
                             elem_mask(Vs2_vu, i) | elem_mask(Vs1_vu, i));
-                    }}, OPMVV, SimdAluOp);
+                    }}, OPMVV, SimdAluOp, IsLogical, IsOr);
                     0x1b: vmxor_mm({{
                         Vd_ub[i/8] = ASSIGN_VD_BIT(i,
                             elem_mask(Vs2_vu, i) ^ elem_mask(Vs1_vu, i));
@@ -4589,7 +4602,7 @@ decode QUADRANT default Unknown::unknown() {
                     0x1d: vmnand_mm({{
                         Vd_ub[i/8] = ASSIGN_VD_BIT(i,
                             !(elem_mask(Vs2_vu, i) & elem_mask(Vs1_vu, i)));
-                    }}, OPMVV, SimdAluOp);
+                    }}, OPMVV, SimdAluOp, IsLogical, IsAnd);
                     0x1e: vmnor_mm({{
                         Vd_ub[i/8] = ASSIGN_VD_BIT(i,
                             !(elem_mask(Vs2_vu, i) | elem_mask(Vs1_vu, i)));
@@ -4706,10 +4719,10 @@ decode QUADRANT default Unknown::unknown() {
                     }}, OPIVI, SimdAddOp);
                     0x09: vand_vi({{
                         Vd_vi[i] = Vs2_vi[i] & (vi)sext<5>(SIMM5);
-                    }}, OPIVI, SimdAluOp);
+                    }}, OPIVI, SimdAluOp, IsLogical, IsAnd);
                     0x0a: vor_vi({{
                         Vd_vi[i] = Vs2_vi[i] | (vi)sext<5>(SIMM5);
-                    }}, OPIVI, SimdAluOp);
+                    }}, OPIVI, SimdAluOp, IsLogical, IsOr);
                     0x0b: vxor_vi({{
                         Vd_vi[i] = Vs2_vi[i] ^ (vi)sext<5>(SIMM5);
                     }}, OPIVI, SimdAluOp);
@@ -5010,7 +5023,7 @@ decode QUADRANT default Unknown::unknown() {
                     }}, OPIVX, SimdAddOp);
                     0x1: vandn_vx({{
                         Vd_vu[i] = Vs2_vu[i] & (~Rs1_vu);
-                    }}, OPIVX, SimdAluOp);
+                    }}, OPIVX, SimdAluOp, IsLogical, IsAnd);
                     0x2: vsub_vx({{
                         Vd_vu[i] = Vs2_vu[i] - Rs1_vu;
                     }}, OPIVX, SimdAddOp);
@@ -5031,10 +5044,10 @@ decode QUADRANT default Unknown::unknown() {
                     }}, OPIVX, SimdCmpOp);
                     0x9: vand_vx({{
                         Vd_vu[i] = Vs2_vu[i] & Rs1_vu;
-                    }}, OPIVX, SimdAluOp);
+                    }}, OPIVX, SimdAluOp, IsLogical, IsAnd);
                     0xa: vor_vx({{
                         Vd_vu[i] = Vs2_vu[i] | Rs1_vu;
-                    }}, OPIVX, SimdAluOp);
+                    }}, OPIVX, SimdAluOp, IsLogical, IsOr);
                     0xb: vxor_vx({{
                         Vd_vu[i] = Vs2_vu[i] ^ Rs1_vu;
                     }}, OPIVX, SimdAluOp);
