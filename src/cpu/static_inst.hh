@@ -48,6 +48,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "arch/generic/pcstate.hh"
 #include "base/logging.hh"
@@ -130,6 +131,16 @@ class StaticInst : public RefCounted, public StaticInstFlags
         return _numTypedDestRegs[type];
     }
     //@}
+
+    struct ImmOperand
+    {
+        RegVal value;
+        size_t bytes;   // natural width: 1 for Imm8Op, 8 for Imm64Op
+    };
+
+    virtual std::vector<ImmOperand> getImmediates() const {
+        return {};
+    }
 
     /// @name Flag accessors.
     /// These functions are used to access the values of the various
