@@ -460,6 +460,7 @@ class PhysRegId : private RegId
     Tick lastTick;
     Tick ACETicks;
     Tick fillTimeTick;
+    int64_t totalAceValue;
     enum Events
     {
         idle,
@@ -480,6 +481,7 @@ class PhysRegId : private RegId
           lastTick(0),
           ACETicks(0),
           fillTimeTick(0),
+          totalAceValue(0),
           lastEvent(idle),
           instTypeAceTicks{},
           hasBeenRead(false)
@@ -495,6 +497,7 @@ class PhysRegId : private RegId
           lastTick(0),
           ACETicks(0),
           fillTimeTick(0),
+          totalAceValue(0),
           lastEvent(idle),
           instTypeAceTicks{},
           hasBeenRead(false)
@@ -617,6 +620,24 @@ class PhysRegId : private RegId
     getFillTimeTick() const
     {
         return fillTimeTick;
+    }
+
+    void
+    addTotalAceValue(int64_t val)
+    {
+        totalAceValue += val;
+    }
+
+    int64_t
+    getTotalAceValue() const
+    {
+        return totalAceValue;
+    }
+
+    void
+    resetTotalAceValue()
+    {
+        totalAceValue = 0;
     }
 
     void setEventFill(){ lastEvent = fill; }
