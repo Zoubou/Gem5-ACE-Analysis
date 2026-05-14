@@ -1184,10 +1184,6 @@ IEW::executeInsts()
             continue;
         }
 
-        if (inst->isLogical()) {
-            inst->performLogicalMasking();
-        }
-
         Fault fault = NoFault;
 
         // Execute instruction.
@@ -1268,6 +1264,10 @@ IEW::executeInsts()
             // will be replaced and we will lose it.
             if (inst->getFault() == NoFault) {
                 inst->execute();
+
+                if (inst->isLogical()) {
+                    inst->performLogicalMasking();
+                }
                 if (!inst->readPredicate())
                     inst->forwardOldRegs();
             }
