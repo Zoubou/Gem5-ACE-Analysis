@@ -47,6 +47,7 @@ UnifiedFreeList::UnifiedFreeList(const std::string &_my_name,
     for (auto &list : freeLists) {
         list.setStatPtr(&_regFile->regFileStats.totalResidencyTicks,
                         &_regFile->regFileStats.totalAceTicks,
+                        &_regFile->regFileStats.totalAceValue,
                         &_regFile->regFileStats.instTypeAceTicks);
     }
 

@@ -79,21 +79,24 @@ class SimpleFreeList
 
     statistics::Vector *totalResidencyTicksPtr;
     statistics::Vector *totalAceTicksPtr;
+    statistics::Vector *totalAceValuePtr;
     statistics::Vector *instTypeAceTicksPtr;
 
   public:
     SimpleFreeList()
         : totalResidencyTicksPtr(nullptr),
           totalAceTicksPtr(nullptr),
+          totalAceValuePtr(nullptr),
           instTypeAceTicksPtr(nullptr){};
 
     // Setter
     void
     setStatPtr(statistics::Vector *_residency, statistics::Vector *_ace,
-               statistics::Vector *_instTypeAce)
+               statistics::Vector *_aceValue, statistics::Vector *_instTypeAce)
     {
         totalResidencyTicksPtr = _residency;
         totalAceTicksPtr = _ace;
+        totalAceValuePtr = _aceValue;
         instTypeAceTicksPtr = _instTypeAce;
     }
 
@@ -107,6 +110,7 @@ class SimpleFreeList
 
         if (isCommit) {
             (*totalAceTicksPtr)[type] += reg->getACETicks();
+            (*totalAceValuePtr)[type] += reg->getTotalAceValue();
 
             for (int i = 0; i < PhysRegId::InstTypeNum; i++) {
                 (*instTypeAceTicksPtr)[i] += reg->getInstTypeAceTicks(i);
@@ -115,6 +119,7 @@ class SimpleFreeList
 
         reg->resetInstTypeAceTicks();
         reg->setAceTicks(0);
+        reg->resetTotalAceValue();
 
         Tick regTicks = curTick() - reg->getFillTimeTick();
         (*totalResidencyTicksPtr)[type] += regTicks;
