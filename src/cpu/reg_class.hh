@@ -448,7 +448,8 @@ class PhysRegId : private RegId
         InstTypeLogical = 0x40,
         InstTypeAnd     = 0x80,
         InstTypeOr      = 0x100,
-        InstTypeNum = 10
+        InstTypeShift   = 0x200,
+        InstTypeNum = 11
     };
 
   private:
