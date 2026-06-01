@@ -152,6 +152,10 @@ class BaseCPU(ClockedObject):
         "between CPU models)",
     )
 
+    enable_logical_masking = Param.Bool(
+        False, "Enable logical masking for ACE analysis"
+    )
+
     model_reset = ResetResponsePort("Generic reset for the CPU")
 
     cpu_idle_pins = VectorIntSourcePin(
