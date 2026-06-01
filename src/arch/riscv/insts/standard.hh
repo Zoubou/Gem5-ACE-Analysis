@@ -68,6 +68,13 @@ class ImmOp : public RiscvStaticInst
     ImmOp(const char *mnem, ExtMachInst _machInst, OpClass __opClass)
         : RiscvStaticInst(mnem, _machInst, __opClass), imm(0)
     {}
+
+  public:
+
+    std::vector<gem5::StaticInst::ImmOperand>
+    getImmediates() const override {
+        return { { static_cast<RegVal>(imm), sizeof(I) } };
+    }
 };
 
 /**
