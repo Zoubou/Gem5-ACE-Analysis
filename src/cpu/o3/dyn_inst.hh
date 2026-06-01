@@ -48,6 +48,7 @@
 #include <list>
 #include <string>
 
+#include "arch/x86/insts/micromediaop.hh"
 #include "base/refcnt.hh"
 #include "base/trace.hh"
 #include "cpu/checker/cpu.hh"
@@ -572,6 +573,7 @@ class DynInst : public ExecContext, public RefCounted
     bool isLogical()      const { return staticInst->isLogical(); }
     bool isAnd()          const { return staticInst->isAnd(); }
     bool isOr()           const { return staticInst->isOr(); }
+    bool isShift()        const { return staticInst->isShift(); }
 
     bool isSerializing()  const { return staticInst->isSerializing(); }
     bool
@@ -1179,7 +1181,8 @@ class DynInst : public ExecContext, public RefCounted
         std::vector<gem5::StaticInst::ImmOperand> imms =
                              staticInst->getImmediates();
 
-        if (numSrcs < 1 || (numSrcs < 2 && imms.empty())) return;
+        if (numSrcs < 1 && imms.empty()) return;
+        if ((numSrcs + (int)imms.size()) < 2) return;
 
         // 1. Identify which registers are being read for the first time
         for (int idx = 0; idx < numSrcs; idx++) {
@@ -1200,36 +1203,20 @@ class DynInst : public ExecContext, public RefCounted
             }
             size_t regBytes = reg->regClass().regBytes();
 
-            if (regFirstRead[idx] && (isAnd() || isOr())) {
+            if (regFirstRead[idx] && (isAnd() || isOr() || isShift()) &&
+                                      cpu->isLogicalMaskingEnabled()) {
                 int aceBits = 0;
                 bool isLarge = (reg->classValue() == VecRegClass ||
                                 reg->classValue() == VecPredRegClass ||
                                 reg->classValue() == MatRegClass);
 
                 if (isAnd()) {
-                    // --- AND LOGIC ---
                     if (!isLarge) {
                         RegVal combinedMask = ~0ULL; // Start with all 1s
-                        /*DPRINTF(ACEAnalysis,
-                                "[LogicalMask] inst [sn:%llu] %s
-                                numSrcs=%d numImms=%llu\n",
-                                seqNum,
-                                isAnd() ? "AND" : "OR",
-                                numSrcs,
-                                (uint64_t)imms.size());*/
+
                         for (int mIdx = 0; mIdx < numSrcs; mIdx++) {
                             const PhysRegIdPtr mReg = renamedSrcIdx(mIdx);
-                            /*DPRINTF(ACEAnalysis, "
-                            src[%d] class=%-8s val=0x%016llx "
-                                    "isCC=%d isMisc=%d
-                                    isInvalid=%d firstRead=%d\n",
-                                    mIdx,
-                                    mReg->className(),
-                                    (unsigned long long)srcRegValues[mIdx],
-                                    mReg->is(CCRegClass),
-                                    mReg->is(MiscRegClass),
-                                    mReg->is(InvalidRegClass),
-                                    (int)regFirstRead[mIdx]);*/
+
                             if (mIdx == idx || mReg->is(CCRegClass) ||
                                 mReg->is(MiscRegClass) ||
                                 mReg->is(InvalidRegClass)) continue;
@@ -1237,8 +1224,6 @@ class DynInst : public ExecContext, public RefCounted
                         }
 
                         for (const auto &imm : imms) {
-                            DPRINTF(ACEAnalysis,
-                            "Found Immediate: 0x%lx\n", imm.value);
                             RegVal neutralizedImm = (imm.bytes >= 8)
                                 ? imm.value
                                 : imm.value | ~((1ULL << (imm.bytes * 8)) - 1);
@@ -1262,8 +1247,6 @@ class DynInst : public ExecContext, public RefCounted
                         }
 
                         for (const auto &imm : imms) {
-                            DPRINTF(ACEAnalysis,
-                            "Found Immediate: 0x%lx\n", imm.value);
                             for (size_t b = 0; b < regBytes; b++) {
                                 if (b < imm.bytes) {
                                     combinedMask[b] &= static_cast<uint8_t>(
@@ -1277,28 +1260,12 @@ class DynInst : public ExecContext, public RefCounted
                     }
                 }
                 else if (isOr()) {
-                    // --- OR LOGIC ---
                     if (!isLarge) {
                         RegVal combinedMask = 0ULL; // Start with all 0s
-                        /*DPRINTF(ACEAnalysis,
-                        "[LogicalMask] inst [sn:%llu] %s
-                        numSrcs=%d numImms=%llu\n",
-                                seqNum,
-                                isAnd() ? "AND" : "OR",
-                                numSrcs,
-                                (uint64_t)imms.size());*/
+
                         for (int mIdx = 0; mIdx < numSrcs; mIdx++) {
                             const PhysRegIdPtr mReg = renamedSrcIdx(mIdx);
-                            /*DPRINTF(ACEAnalysis, "  src[%d]
-                            class=%-8s val=0x%016llx "
-                            "isCC=%d isMisc=%d isInvalid=%d firstRead=%d\n",
-                                    mIdx,
-                                    mReg->className(),
-                                    (unsigned long long)srcRegValues[mIdx],
-                                    mReg->is(CCRegClass),
-                                    mReg->is(MiscRegClass),
-                                    mReg->is(InvalidRegClass),
-                                    (int)regFirstRead[mIdx]);*/
+
                             if (mIdx == idx || mReg->is(CCRegClass) ||
                                 mReg->is(MiscRegClass) ||
                                 mReg->is(InvalidRegClass)) continue;
@@ -1306,8 +1273,6 @@ class DynInst : public ExecContext, public RefCounted
                         }
 
                         for (const auto &imm : imms) {
-                            DPRINTF(ACEAnalysis,
-                            "Found Immediate: 0x%lx\n", imm.value);
                             RegVal neutralizedImm = (imm.bytes >= 8)
                                 ? imm.value
                                 : imm.value & ((1ULL << (imm.bytes * 8)) - 1);
@@ -1332,8 +1297,6 @@ class DynInst : public ExecContext, public RefCounted
                         }
 
                         for (const auto &imm : imms) {
-                            DPRINTF(ACEAnalysis,
-                            "Found Immediate: 0x%lx\n", imm.value);
                             for (size_t b = 0; b < regBytes; b++) {
                                 if (b < imm.bytes) {
                                     combinedMask[b] |= static_cast<uint8_t>(
@@ -1347,23 +1310,58 @@ class DynInst : public ExecContext, public RefCounted
                                 static_cast<uint8_t>(~byte));
                         }
                     }
+                } else if (isShift()){
+                    RegVal shiftAmt = 0;
+                    bool isDataRegister = true;
+
+                    if (!imms.empty()) {
+                        shiftAmt = imms[0].value;
+                    } else if (numSrcs > 1) {
+                        shiftAmt = srcRegValues[numSrcs - 1] &
+                                   (regBytes * 8 - 1);
+
+                        if (idx == numSrcs - 1) {
+                            isDataRegister = false;
+                        }
+                    }
+
+                    size_t totalRegBits = regBytes * 8;
+
+                    if (!isDataRegister) {
+                        aceBits = totalRegBits;
+                    } else {
+                        if (!isLarge) {
+                            if (shiftAmt >= totalRegBits) {
+                                aceBits = 0;
+                            } else {
+                                aceBits = totalRegBits - shiftAmt;
+                            }
+                        } else {
+
+                            size_t laneWidthBits = totalRegBits;
+
+                            auto mediaOp = dynamic_cast
+                            <const X86ISA::MediaOpBase*>(staticInst.get());
+                            if (mediaOp && mediaOp->getSrcSize() > 0) {
+                                laneWidthBits = mediaOp->getSrcSize() * 8;
+                            }
+
+                            if (shiftAmt >= laneWidthBits) {
+                                aceBits = 0;
+                            } else {
+                                size_t numLanes =
+                                totalRegBits / laneWidthBits;
+
+                                aceBits =
+                                (laneWidthBits - shiftAmt) * numLanes;
+                            }
+                        }
+                    }
                 }
-                /*DPRINTF(ACEAnalysis, "Masking Result for
-                          Reg %d: %d ACE bits\n",
-                          idx, aceBits);*/
 
                 Tick curRegDuration = srcRegReadDurations[idx];
                 reg->addTotalAceValue(curRegDuration * aceBits);
             } else {
-                /*DPRINTF(ACEAnalysis,
-                "Source Reg Index %d (%s) Value: 0x%lx "
-                "[NOT_AND_OR or NOT_FIRST_READ] regBytes=%llu
-                isAnd=%d isOr=%d firstRead=%d\n",
-                idx, reg->regClass().name(), srcRegValues[idx],
-                (uint64_t)regBytes,
-                (int)isAnd(), (int)isOr(),
-                (int)regFirstRead[idx]);*/
-
 
                 Tick curRegDuration = srcRegReadDurations[idx];
                 size_t regBits = reg->regClass().regBytes() * 8;
@@ -1387,6 +1385,7 @@ class DynInst : public ExecContext, public RefCounted
         if (isLogical())  flags |= PhysRegId::InstTypeLogical;
         if (isAnd())      flags |= PhysRegId::InstTypeAnd;
         if (isOr())       flags |= PhysRegId::InstTypeOr;
+        if (isShift())    flags |= PhysRegId::InstTypeShift;
 
         return flags;
     }
