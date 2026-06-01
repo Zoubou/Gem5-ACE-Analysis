@@ -144,6 +144,9 @@ class BaseCPU : public ClockedObject
     /** Is the CPU switched out or active? */
     bool _switchedOut;
 
+    /**Enable logical masking */
+    bool logicalMaskingEnabled;
+
     /** Cache the cache line size that we get from the system */
     const Addr _cacheLineSize;
 
@@ -395,6 +398,8 @@ class BaseCPU : public ClockedObject
      * @return True if the CPU is switched out, false otherwise.
      */
     bool switchedOut() const { return _switchedOut; }
+
+    bool isLogicalMaskingEnabled() const { return logicalMaskingEnabled; }
 
     /**
      * Verify that the system is in a memory mode supported by the
