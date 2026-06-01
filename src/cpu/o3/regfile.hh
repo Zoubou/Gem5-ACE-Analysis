@@ -185,7 +185,8 @@ class PhysRegFile
         phys_reg->setTick(curTick());
         phys_reg->setEventRead();
 
-        if (!(instTypes & (PhysRegId::InstTypeLogical))) {
+        if (!(instTypes & (PhysRegId::InstTypeAnd | PhysRegId::InstTypeOr |
+                           PhysRegId::InstTypeShift))) {
             phys_reg->setHasBeenRead(true);
             size_t regBits = phys_reg->regClass().regBytes() * 8;
             phys_reg->addTotalAceValue(duration * regBits);
@@ -233,7 +234,8 @@ class PhysRegFile
             phys_reg->setTick(curTick());
             phys_reg->setEventRead();
 
-            if (!(instTypes & (PhysRegId::InstTypeLogical))) {
+            if (!(instTypes & (PhysRegId::InstTypeAnd | PhysRegId::InstTypeOr |
+                               PhysRegId::InstTypeShift))) {
                 phys_reg->setHasBeenRead(true);
                 size_t regBits = phys_reg->regClass().regBytes() * 8;
                 phys_reg->addTotalAceValue(duration * regBits);
@@ -387,10 +389,10 @@ class PhysRegFile
 
         PhysRegFile *rf;
         statistics::Vector totalAceTicks;
-        statistics::Vector totalAceValue;
         statistics::Vector totalResidencyTicks;
         statistics::Vector instTypeAceTicks;
         statistics::Vector numRegs;
+        statistics::Vector totalAceValue;
         statistics::Vector numBits;
         statistics::Formula AVF;
 

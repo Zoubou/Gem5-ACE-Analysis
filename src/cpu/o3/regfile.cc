@@ -82,7 +82,7 @@ PhysRegFile::RegFileStats::RegFileStats(statistics::Group *parent,
 
     const char *inst_type_names[] = {"intAlu", "floatAlu", "vecAlu", "Load",
                                      "Store", "Branch", "Logical",
-                                     "And", "Or"};
+                                     "And", "Or", "Shift"};
 
     for (int i = 0; i < NumRegClasses; ++i) {
         if (i < (sizeof(reg_names) / sizeof(char *))) {
