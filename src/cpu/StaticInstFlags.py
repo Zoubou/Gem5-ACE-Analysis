@@ -83,6 +83,7 @@ class StaticInstFlags(Enum):
         "IsLogical",  # Logical instruction (AND, OR, XOR, etc.)
         "IsAnd",  # Logical AND instruction
         "IsOr",  # Logical OR instruction
+        "IsShift",  # Shift instruction (logical or arithmetic)
         "IsSerializeBefore",
         "IsSerializeAfter",
         "IsWriteBarrier",  # Is a write barrier
