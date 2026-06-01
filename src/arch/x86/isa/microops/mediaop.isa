@@ -65,6 +65,7 @@ def template MediaOpDeclare {{
             %(is_logical_flag_init)s;
             %(is_and_flag_init)s;
             %(is_or_flag_init)s;
+            %(is_shift_flag_init)s;
             %(constructor)s;
         }
 
@@ -83,7 +84,9 @@ let {{
         def buildCppClasses(self, name, Name, suffix, code,
                             is_floatalu_flag_init, is_logical_flag_init,
                             is_and_flag_init,
-                            is_or_flag_init, operand_types):
+                            is_or_flag_init,
+                            is_shift_flag_init,
+                            operand_types):
 
             # Globals to stick the output in
             global header_output
@@ -107,11 +110,13 @@ let {{
                 self.buildCppClasses(name, Name, suffix,
                         matcher.sub(src2_name, code), is_floatalu_flag_init,
                         is_logical_flag_init,
-                        is_and_flag_init, is_or_flag_init, operand_types)
+                        is_and_flag_init, is_or_flag_init,
+                        is_shift_flag_init, operand_types)
                 self.buildCppClasses(name + "i", Name, suffix + "Imm",
                         matcher.sub("imm8", code), is_floatalu_flag_init,
                         is_logical_flag_init,
-                        is_and_flag_init, is_or_flag_init, imm_operand_types)
+                        is_and_flag_init, is_or_flag_init,
+                        is_shift_flag_init, imm_operand_types)
                 return
 
             base = "X86ISA::InstOperands<" + \
@@ -126,7 +131,8 @@ let {{
                             "is_floatalu_flag_init" : is_floatalu_flag_init,
                             "is_logical_flag_init" : is_logical_flag_init,
                             "is_and_flag_init" : is_and_flag_init,
-                            "is_or_flag_init" : is_or_flag_init},
+                            "is_or_flag_init" : is_or_flag_init,
+                            "is_shift_flag_init" : is_shift_flag_init},
                             opt_args)
 
             # Generate the actual code (finally!)
@@ -152,13 +158,16 @@ let {{
                 is_logical_flag_init = cls.is_logical_flag_init
                 is_and_flag_init = cls.is_and_flag_init
                 is_or_flag_init = cls.is_or_flag_init
+                is_shift_flag_init = cls.is_shift_flag_init
                 operand_types = cls.operand_types
 
                 # Set up the C++ classes
                 mcls.buildCppClasses(cls, name, Name, "", code,
                                      is_floatalu_flag_init,
                                      is_logical_flag_init,
-                                     is_and_flag_init, is_or_flag_init,
+                                     is_and_flag_init,
+                                     is_or_flag_init,
+                                     is_shift_flag_init,
                                      operand_types)
 
                 # Hook into the microassembler dict
@@ -180,6 +189,7 @@ let {{
         is_logical_flag_init = ""
         is_and_flag_init = ""
         is_or_flag_init = ""
+        is_shift_flag_init = ""
 
         def __init__(self, *args, size=None, destSize=None, srcSize=None,
                 ext=None):
@@ -1135,6 +1145,7 @@ let {{
     class Msrl(Media3Op):
         operand_types = (FloatDestOp, FloatSrc1Op, Op2)
         op_class = 'SimdShiftOp'
+        is_shift_flag_init = "flags[IsShift] = true;"
         code = '''
 
             assert(srcSize == destSize);
@@ -1164,6 +1175,7 @@ let {{
     class Msra(Media3Op):
         operand_types = (FloatDestOp, FloatSrc1Op, Op2)
         op_class = 'SimdShiftOp'
+        is_shift_flag_init = "flags[IsShift] = true;"
         code = '''
 
             assert(srcSize == destSize);
@@ -1197,6 +1209,7 @@ let {{
     class Msll(Media3Op):
         operand_types = (FloatDestOp, FloatSrc1Op, Op2)
         op_class = 'SimdShiftOp'
+        is_shift_flag_init = "flags[IsShift] = true;"
         code = '''
 
             assert(srcSize == destSize);

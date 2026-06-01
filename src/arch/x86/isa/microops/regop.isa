@@ -88,6 +88,7 @@ def template MicroRegOpDeclare {{
             %(is_logical_flag_init)s;
             %(is_and_flag_init)s;
             %(is_or_flag_init)s;
+            %(is_shift_flag_init)s;
 
             // In some cases, we need to invalidate some source registers
             // to eliminate unnecessary input dependencies (e.g., for a
@@ -123,6 +124,7 @@ def template MicroRegOpBranchDeclare {{
             %(is_logical_flag_init)s;
             %(is_and_flag_init)s;
             %(is_or_flag_init)s;
+            %(is_shift_flag_init)s;
         }
 
         Fault execute(ExecContext *, trace::InstRecord *) const override;
@@ -199,7 +201,7 @@ let {{
         def buildCppClasses(self, name, Name, suffix, code, big_code, \
                 flag_code, cond_check, else_code, cond_control_flag_init,
                 is_intalu_flag_init, is_logical_flag_init, is_and_flag_init,
-                is_or_flag_init,
+                is_or_flag_init, is_shift_flag_init,
                 invalidate_srcs, op_class, operand_types):
 
             # Globals to stick the output in
@@ -212,13 +214,17 @@ let {{
                                 cond_control_flag_init,
                                 is_intalu_flag_init,
                                 is_logical_flag_init,
-                                is_and_flag_init, is_or_flag_init,
+                                is_and_flag_init,
+                                is_or_flag_init,
+                                is_shift_flag_init,
                                 invalidate_srcs))
             allBigCode = "|".join((big_code, flag_code, cond_check, else_code,
                                    cond_control_flag_init,
                                    is_intalu_flag_init,
                                    is_logical_flag_init,
-                                   is_and_flag_init, is_or_flag_init,
+                                   is_and_flag_init,
+                                   is_or_flag_init,
+                                   is_shift_flag_init,
                                    invalidate_srcs))
 
             # If op2 is used anywhere, make register and immediate versions
@@ -249,6 +255,7 @@ let {{
                         matcher.sub(src2_name, is_logical_flag_init),
                         matcher.sub(src2_name, is_and_flag_init),
                         matcher.sub(src2_name, is_or_flag_init),
+                        matcher.sub(src2_name, is_shift_flag_init),
                         matcher.sub(src2_name, invalidate_srcs),
                         op_class, operand_types)
                 imm_name = '(int8_t)imm8' if match.group("prefix") else 'imm8'
@@ -263,6 +270,7 @@ let {{
                         matcher.sub(imm_name, is_logical_flag_init),
                         matcher.sub(imm_name, is_and_flag_init),
                         matcher.sub(imm_name, is_or_flag_init),
+                        matcher.sub(src2_name, is_shift_flag_init),
                         matcher.sub(imm_name, invalidate_srcs),
                         op_class, imm_operand_types)
                 return
@@ -275,6 +283,7 @@ let {{
                         "flags[IsUncondControl] = flags[IsControl];",
                         is_intalu_flag_init, is_logical_flag_init,
                         is_and_flag_init, is_or_flag_init,
+                        is_shift_flag_init,
                         invalidate_srcs, op_class, operand_types)
                 suffix = "Flags" + suffix
 
@@ -297,6 +306,7 @@ let {{
                      "is_logical_flag_init" : is_logical_flag_init,
                      "is_and_flag_init" : is_and_flag_init,
                      "is_or_flag_init" : is_or_flag_init,
+                     "is_shift_flag_init" : is_shift_flag_init,
                      "invalidate_srcs": invalidate_srcs,
                      "op_class" : op_class})]
             if big_code != "":
@@ -310,6 +320,7 @@ let {{
                           "is_logical_flag_init" : is_logical_flag_init,
                           "is_and_flag_init" : is_and_flag_init,
                           "is_or_flag_init" : is_or_flag_init,
+                          "is_shift_flag_init" : is_shift_flag_init,
                           "invalidate_srcs": invalidate_srcs,
                           "op_class" : op_class})]
 
@@ -344,6 +355,7 @@ let {{
             is_logical_flag_init = cls.is_logical_flag_init
             is_and_flag_init = cls.is_and_flag_init
             is_or_flag_init = cls.is_or_flag_init
+            is_shift_flag_init = cls.is_shift_flag_init
             invalidate_srcs = cls.invalidate_srcs
             op_class = cls.op_class
             operand_types = cls.operand_types
@@ -353,7 +365,9 @@ let {{
                     flag_code, cond_check, else_code,
                     cond_control_flag_init, is_intalu_flag_init,
                     is_logical_flag_init,
-                    is_and_flag_init, is_or_flag_init,
+                    is_and_flag_init,
+                    is_or_flag_init,
+                    is_shift_flag_init,
                     invalidate_srcs, op_class, operand_types)
 
             # Hook into the microassembler dict
@@ -364,7 +378,9 @@ let {{
                                 cond_control_flag_init,
                                 is_intalu_flag_init,
                                 is_logical_flag_init,
-                                is_and_flag_init, is_or_flag_init,
+                                is_and_flag_init,
+                                is_or_flag_init,
+                                is_shift_flag_init,
                                 invalidate_srcs))
 
             # If op2 is used anywhere, make register and immediate versions
@@ -390,6 +406,7 @@ let {{
         is_logical_flag_init = ""
         is_and_flag_init = ""
         is_or_flag_init = ""
+        is_shift_flag_init = ""
         invalidate_srcs = ""
         op_class = "IntAluOp"
 
@@ -805,6 +822,7 @@ let {{
     # Shift instructions
 
     class Sll(BasicRegOp):
+        is_shift_flag_init = "flags[IsShift] = true;"
         code = '''
             uint8_t shiftAmt = (op2 & ((dataSize == 8) ? mask(6) : mask(5)));
             DestReg = merge(DestReg, dest, PSrcReg1 << shiftAmt, dataSize);
@@ -855,6 +873,7 @@ let {{
         # Because what happens to the bits shift -in- on a right shift
         # is not defined in the C/C++ standard, we have to mask them out
         # to be sure they're zero.
+        is_shift_flag_init = "flags[IsShift] = true;"
         code = '''
             uint8_t shiftAmt = (op2 & ((dataSize == 8) ? mask(6) : mask(5)));
             uint64_t logicalMask = mask(dataSize * 8 - shiftAmt);
@@ -901,6 +920,7 @@ let {{
         # Because what happens to the bits shift -in- on a right shift
         # is not defined in the C/C++ standard, we have to sign extend
         # them manually to be sure.
+        is_shift_flag_init = "flags[IsShift] = true;"
         code = '''
             uint8_t shiftAmt = (op2 & ((dataSize == 8) ? mask(6) : mask(5)));
             uint64_t arithMask = (shiftAmt == 0) ? 0 :
@@ -1133,6 +1153,7 @@ let {{
         '''
 
     class Sld(BasicRegOp):
+        is_shift_flag_init = "flags[IsShift] = true;"
         sldCode = '''
             uint8_t shiftAmt = (op2 & ((dataSize == 8) ? mask(6) : mask(5)));
             uint8_t dataBits = dataSize * 8;
@@ -1193,6 +1214,7 @@ let {{
         '''
 
     class Srd(BasicRegOp):
+        is_shift_flag_init = "flags[IsShift] = true;"
         srdCode = '''
             uint8_t shiftAmt = (op2 & ((dataSize == 8) ? mask(6) : mask(5)));
             uint8_t dataBits = dataSize * 8;
