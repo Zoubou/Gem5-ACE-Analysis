@@ -48,7 +48,7 @@
 #include <list>
 #include <string>
 
-#include "arch/x86/insts/micromediaop.hh"
+//#include "arch/x86/insts/micromediaop.hh"
 #include "base/refcnt.hh"
 #include "base/trace.hh"
 #include "cpu/checker/cpu.hh"
@@ -216,6 +216,7 @@ class DynInst : public ExecContext, public RefCounted
     std::vector<RegVal> srcRegValues;
     std::vector<std::vector<uint8_t>> srcRegValuesLarge;
     std::vector<Tick> srcRegReadDurations;
+    std::vector<int64_t> srcRegPendingAceValues;
 
     /** Indexes of the destination misc. registers. They are needed to defer
      * the write accesses to the misc. registers until the commit stage, when
@@ -361,7 +362,6 @@ class DynInst : public ExecContext, public RefCounted
     /** Store queue index. */
     ssize_t sqIdx = -1;
     typename LSQUnit::SQIterator sqIt;
-
 
     /////////////////////// TLB Miss //////////////////////
     /**
@@ -574,6 +574,7 @@ class DynInst : public ExecContext, public RefCounted
     bool isAnd()          const { return staticInst->isAnd(); }
     bool isOr()           const { return staticInst->isOr(); }
     bool isShift()        const { return staticInst->isShift(); }
+    bool isCmp()          const { return staticInst->isCmp(); }
 
     bool isSerializing()  const { return staticInst->isSerializing(); }
     bool
@@ -1194,10 +1195,15 @@ class DynInst : public ExecContext, public RefCounted
             }
         }
 
+        //DPRINTF(ACEAnalysis, "Inst: %s | numSrcs: %d | numImms: %d\n",
+        //  staticInst->getName(), numSrcs, (int)imms.size());
+
         // 2. Process each register
         for (int idx = 0; idx < numSrcs; idx++) {
 
             const PhysRegIdPtr reg = renamedSrcIdx(idx);
+            //DPRINTF(ACEAnalysis, "Inst: %s | Reg Class: %s\n",
+            //  staticInst->getName(), reg->classValue());
             if (reg->is(CCRegClass) || reg->is(MiscRegClass)) {
                 continue;
             }
@@ -1336,7 +1342,7 @@ class DynInst : public ExecContext, public RefCounted
                             } else {
                                 aceBits = totalRegBits - shiftAmt;
                             }
-                        } else {
+                        } /*else {
 
                             size_t laneWidthBits = totalRegBits;
 
@@ -1355,19 +1361,36 @@ class DynInst : public ExecContext, public RefCounted
                                 aceBits =
                                 (laneWidthBits - shiftAmt) * numLanes;
                             }
-                        }
+                        }*/
                     }
+                } if (isControl()){
+
                 }
 
                 Tick curRegDuration = srcRegReadDurations[idx];
-                reg->addTotalAceValue(curRegDuration * aceBits);
+                int64_t maskedAceValue = curRegDuration * aceBits;
+                reg->addTotalAceValue(maskedAceValue);
+
+                // --- DEAD INST TRACKING: Save the masked ACE ticks ---
+                srcRegPendingAceValues[idx] = maskedAceValue;
             } else {
 
                 Tick curRegDuration = srcRegReadDurations[idx];
                 size_t regBits = reg->regClass().regBytes() * 8;
-                reg->addTotalAceValue(curRegDuration * regBits);
+                int64_t fullAceValue = curRegDuration * regBits;
+                reg->addTotalAceValue(fullAceValue);
+
+                // --- DEAD INST TRACKING ---
+                srcRegPendingAceValues[idx] = fullAceValue;
             }
         }
+    }
+
+    int64_t getPendingAceValue(int idx) const {
+        if (idx >= 0 && idx < srcRegPendingAceValues.size()) {
+            return srcRegPendingAceValues[idx];
+        }
+        return 0;
     }
 
     uint16_t
@@ -1397,15 +1420,23 @@ class DynInst : public ExecContext, public RefCounted
         if (reg->is(InvalidRegClass))
             return 0;
 
-        // Capture duration BEFORE getReg() updates the tick
         Tick durationBeforeRead = curTick() - reg->getLastTick();
 
         RegVal val = cpu->getReg(reg, getInstTypeFlags(), threadNumber);
 
         if (idx < (int)srcRegValues.size()) {
             srcRegValues[idx] = val;
-            // Use the pre-captured duration, not post-getReg()
             srcRegReadDurations[idx] = durationBeforeRead;
+            size_t regBits = reg->regClass().regBytes() * 8;
+
+            if (!(getInstTypeFlags() & (PhysRegId::InstTypeAnd |
+                                        PhysRegId::InstTypeOr |
+                                        PhysRegId::InstTypeShift |
+                                        PhysRegId::InstTypeControl))) {
+                srcRegPendingAceValues[idx] = durationBeforeRead * regBits;
+            } else {
+                srcRegPendingAceValues[idx] = 0;
+            }
         }
         return val;
     }
@@ -1417,7 +1448,6 @@ class DynInst : public ExecContext, public RefCounted
         if (reg->is(InvalidRegClass))
             return;
 
-        // Capture duration BEFORE getReg() updates the tick
         Tick durationBeforeRead = curTick() - reg->getLastTick();
 
         cpu->getReg(reg, val, getInstTypeFlags(), threadNumber);
@@ -1429,6 +1459,18 @@ class DynInst : public ExecContext, public RefCounted
                 static_cast<uint8_t*>(val),
                 static_cast<uint8_t*>(val) + bytes
             );
+
+            size_t regBits = bytes * 8;
+
+            if (!(getInstTypeFlags() & (PhysRegId::InstTypeAnd |
+                                        PhysRegId::InstTypeOr |
+                                        PhysRegId::InstTypeShift |
+                                        PhysRegId::InstTypeControl))) {
+
+                srcRegPendingAceValues[idx] = durationBeforeRead * regBits;
+            } else {
+                srcRegPendingAceValues[idx] = 0;
+            }
         }
     }
 

@@ -66,6 +66,7 @@ DynInst::DynInst(const Arrays &arrays, const StaticInstPtr &static_inst,
     srcRegValues.resize(staticInst->numSrcRegs(), 0);
     srcRegValuesLarge.resize(staticInst->numSrcRegs());
     srcRegReadDurations.resize(staticInst->numSrcRegs(), 0);
+    srcRegPendingAceValues.resize(staticInst->numSrcRegs(), 0);
 
     status.reset();
 
