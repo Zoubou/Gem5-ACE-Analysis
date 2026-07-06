@@ -502,6 +502,9 @@ class CPU : public BaseCPU
     ActivityRecorder activityRec;
 
   public:
+
+    PhysRegFile& getRegFile() { return regFile; }
+
     /** Records that there was time buffer activity this cycle. */
     void activityThisCycle() { activityRec.activity(); }
 

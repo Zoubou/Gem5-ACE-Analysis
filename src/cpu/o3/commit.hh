@@ -226,6 +226,20 @@ class Commit
     /** Updates the overall status of commit with the nextStatus, and
      * tell the CPU if commit is active/inactive.
      */
+    struct TrackedInst
+    {
+        Tick commitTick;
+        PhysRegIdPtr destReg;
+        std::vector<RegClassType> srcClasses;
+        std::vector<int64_t> addedAceValues;
+    };
+
+    std::deque<TrackedInst> deadInstWindow;
+
+    const Tick OBSERVATION_THRESHOLD = 1000;
+
+    void evaluateDeadInstWindow();
+
     void updateStatus();
 
     /** Returns if any of the threads have the number of ROB entries changed
