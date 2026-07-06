@@ -183,10 +183,12 @@ class PhysRegFile
         phys_reg->addInstTypeAceTicks(instTypes, duration);
 
         phys_reg->setTick(curTick());
+        phys_reg->setLastReadTick(curTick());
         phys_reg->setEventRead();
 
         if (!(instTypes & (PhysRegId::InstTypeAnd | PhysRegId::InstTypeOr |
-                           PhysRegId::InstTypeShift))) {
+                           PhysRegId::InstTypeShift |
+                           PhysRegId::InstTypeControl))) {
             phys_reg->setHasBeenRead(true);
             size_t regBits = phys_reg->regClass().regBytes() * 8;
             phys_reg->addTotalAceValue(duration * regBits);
@@ -232,10 +234,12 @@ class PhysRegFile
             phys_reg->addInstTypeAceTicks(instTypes, duration);
 
             phys_reg->setTick(curTick());
+            phys_reg->setLastReadTick(curTick());
             phys_reg->setEventRead();
 
             if (!(instTypes & (PhysRegId::InstTypeAnd | PhysRegId::InstTypeOr |
-                               PhysRegId::InstTypeShift))) {
+                               PhysRegId::InstTypeShift |
+                               PhysRegId::InstTypeControl))) {
                 phys_reg->setHasBeenRead(true);
                 size_t regBits = phys_reg->regClass().regBytes() * 8;
                 phys_reg->addTotalAceValue(duration * regBits);
