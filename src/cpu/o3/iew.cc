@@ -1265,7 +1265,8 @@ IEW::executeInsts()
             if (inst->getFault() == NoFault) {
                 inst->execute();
 
-                if (inst->isAnd()| inst->isOr() | inst->isShift()) {
+                if (inst->isAnd()| inst->isOr() | inst->isShift() |
+                    inst->isControl()) {
                     inst->performLogicalMasking();
                 }
                 if (!inst->readPredicate())

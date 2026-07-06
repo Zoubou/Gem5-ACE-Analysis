@@ -183,6 +183,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isAnd()          const { return flags[IsAnd]; }
     bool isOr()           const { return flags[IsOr]; }
     bool isShift()        const { return flags[IsShift]; }
+    bool isCmp()          const { return flags[IsCmp]; }
 
     bool isSerializing()  const { return flags[IsSerializing] ||
                                       flags[IsSerializeBefore] ||

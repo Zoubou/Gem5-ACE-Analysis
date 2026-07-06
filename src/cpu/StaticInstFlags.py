@@ -84,6 +84,7 @@ class StaticInstFlags(Enum):
         "IsAnd",  # Logical AND instruction
         "IsOr",  # Logical OR instruction
         "IsShift",  # Shift instruction (logical or arithmetic)
+        "IsCmp",  # Compare instruction (sets flags but doesn't write reg)
         "IsSerializeBefore",
         "IsSerializeAfter",
         "IsWriteBarrier",  # Is a write barrier
