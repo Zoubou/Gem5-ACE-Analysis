@@ -460,6 +460,7 @@ class PhysRegId : private RegId
     /*ACE analysis vars here*/
     Tick lastTick;
     Tick lastReadTick;
+    Tick lastWriteTick;
     Tick ACETicks;
     Tick fillTimeTick;
     int64_t totalAceValue;
@@ -482,6 +483,7 @@ class PhysRegId : private RegId
           numPinnedWritesToComplete(0),
           lastTick(0),
           lastReadTick(0),
+          lastWriteTick(0),
           ACETicks(0),
           fillTimeTick(0),
           totalAceValue(0),
@@ -499,6 +501,7 @@ class PhysRegId : private RegId
           pinned(false),
           lastTick(0),
           lastReadTick(0),
+          lastWriteTick(0),
           ACETicks(0),
           fillTimeTick(0),
           totalAceValue(0),
@@ -599,6 +602,9 @@ class PhysRegId : private RegId
 
     void setLastReadTick(Tick t) { lastReadTick = t; }
     Tick getLastReadTick() const { return lastReadTick; }
+
+    void setLastWriteTick(Tick t) { lastWriteTick = t; }
+    Tick getLastWriteTick() const { return lastWriteTick; }
 
     void
     addACETicks(Tick t)
