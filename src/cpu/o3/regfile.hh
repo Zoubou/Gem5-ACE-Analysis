@@ -286,6 +286,7 @@ class PhysRegFile
         const RegIndex idx = phys_reg->index();
 
         phys_reg->setTick(curTick());
+        phys_reg->setLastWriteTick(curTick());
         phys_reg->setEventWrite();
         phys_reg->setHasBeenRead(false);
 
@@ -308,6 +309,7 @@ class PhysRegFile
         const RegIndex idx = phys_reg->index();
 
         phys_reg->setTick(curTick());
+        phys_reg->setLastWriteTick(curTick());
         phys_reg->setEventWrite();
         phys_reg->setHasBeenRead(false);
 
@@ -348,6 +350,7 @@ class PhysRegFile
         if (type == VecRegClass || type == VecPredRegClass ||
             type == MatRegClass) {
             phys_reg->setTick(curTick());
+            phys_reg->setLastWriteTick(curTick());
             phys_reg->setEventWrite();
             phys_reg->setHasBeenRead(false);
         }
