@@ -156,6 +156,13 @@ class BaseCPU(ClockedObject):
         False, "Enable logical masking for ACE analysis"
     )
 
+    track_dead_insts = Param.Bool(
+        False, "Enable dead instruction tracking for AVF"
+    )
+    dead_inst_threshold = Param.Tick(
+        10000, "Observation window threshold in ticks"
+    )
+
     model_reset = ResetResponsePort("Generic reset for the CPU")
 
     cpu_idle_pins = VectorIntSourcePin(

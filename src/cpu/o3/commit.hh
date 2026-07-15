@@ -229,14 +229,12 @@ class Commit
     struct TrackedInst
     {
         Tick commitTick;
-        PhysRegIdPtr destReg;
+        std::vector<PhysRegIdPtr> destRegs;
         std::vector<RegClassType> srcClasses;
         std::vector<int64_t> addedAceValues;
     };
 
     std::deque<TrackedInst> deadInstWindow;
-
-    const Tick OBSERVATION_THRESHOLD = 1000;
 
     void evaluateDeadInstWindow();
 
@@ -412,6 +410,9 @@ class Commit
 
     /** Number of Active Threads */
     const ThreadID numThreads;
+
+    bool trackDeadInsts;
+    Tick deadInstThreshold;
 
     /** Is a drain pending? Commit is looking for an instruction boundary while
      * there are no pending interrupts
