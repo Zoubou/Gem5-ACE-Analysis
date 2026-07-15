@@ -111,6 +111,8 @@ Commit::Commit(CPU *_cpu, const BaseO3CPUParams &params)
       renameWidth(params.renameWidth),
       commitWidth(params.commitWidth),
       numThreads(params.numThreads),
+      trackDeadInsts(params.track_dead_insts),
+      deadInstThreshold(params.dead_inst_threshold),
       drainPending(false),
       drainImminent(false),
       trapLatency(params.trapLatency),
@@ -896,6 +898,113 @@ Commit::commit()
 }
 
 void
+Commit::evaluateDeadInstWindow()
+{
+    if (!deadInstWindow.empty()) {
+        DPRINTF(ACEAnalysis, "Evaluating window. Current Tick: %lu,
+            Total Insts in Window: %d\n",
+                curTick(), deadInstWindow.size());
+    }
+
+    while (!deadInstWindow.empty()) {
+        TrackedInst& oldestInst = deadInstWindow.front();
+
+        if (curTick() - oldestInst.commitTick < deadInstThreshold) {
+            DPRINTF(ACEAnalysis, "Oldest inst committed at %lu.
+                Age: %lu < Threshold: %lu. Exiting loop.\n",
+                    oldestInst.commitTick,
+                    (curTick() - oldestInst.commitTick), deadInstThreshold);
+            break;
+        }
+
+        bool isDead = false;
+
+        if (!oldestInst.destRegs.empty()) {
+            bool allDestsAreDead = true;
+
+            for (auto& destReg : oldestInst.destRegs) {
+                Tick lastRead = destReg->getLastReadTick();
+                Tick lastWrite = destReg->getLastWriteTick();
+
+                bool isRegDead = false;
+                bool isRecycled = (lastWrite > oldestInst.commitTick);
+
+                if (!isRecycled) {
+
+                    if (lastRead < lastWrite) {
+                        isRegDead = true;
+                    }
+                } else {
+
+                    if (lastRead <= oldestInst.commitTick) {
+                        isRegDead = true;
+                    }
+                }
+
+                // Αν έστω και ένας προορισμός ΔΕΝ είναι dead,
+                // όλη η εντολή σώζεται.
+                if (!isRegDead) {
+                    allDestsAreDead = false;
+                }
+
+                DPRINTF(ACEAnalysis, " ->
+                    Sub-Evaluation Reg [Class:%d, Index:%d] |
+                     Commit: %lu | LastRead: %lu |
+                     LastWrite: %lu | RegResult: %s\n",
+                        (int)destReg->classValue(), destReg->index(),
+                        oldestInst.commitTick, lastRead, lastWrite,
+                        isRegDead ? "DEAD" : "ALIVE");
+            }
+
+            isDead = allDestsAreDead;
+
+            DPRINTF(ACEAnalysis, "Evaluating Inst Final Result ->
+                Combined Dest Regs Outcome: %s\n",
+                    isDead ? "DEAD" : "ALIVE");
+
+        } else {
+            isDead = false;
+            DPRINTF(ACEAnalysis, "Inst has no tracked DestRegs.
+                Automatically evaluated as ALIVE.\n");
+        }
+
+        if (isDead) {
+            for (size_t i = 0; i < oldestInst.srcClasses.size(); i++) {
+                RegClassType rClass = oldestInst.srcClasses[i];
+                int64_t falseValue = oldestInst.addedAceValues[i];
+                size_t classIdx = static_cast<size_t>(rClass);
+
+                if (classIdx < cpu->getRegFile().regFileStats.
+                    totalAceValue.size()) {
+                    double currentStatVal =
+                    cpu->getRegFile().regFileStats.
+                    totalAceValue[rClass].value();
+
+                    if (currentStatVal >= falseValue) {
+                        DPRINTF(ACEAnalysis, "   -> Subtracting %ld
+                            ACE ticks from Class %d due to
+                            dead instruction.\n",
+                                falseValue, (int)classIdx);
+                        cpu->getRegFile().regFileStats.
+                        totalAceValue[rClass] -= falseValue;
+                    } else {
+                        DPRINTF(ACEAnalysis, "   -> Capping subtraction
+                            for Class %d to
+                            prevent negative value
+                            (Current: %f, Tried to sub: %ld).\n",
+                                (int)classIdx, currentStatVal, falseValue);
+                        cpu->getRegFile().regFileStats.
+                        totalAceValue[rClass] -= currentStatVal;
+                    }
+                }
+            }
+        }
+
+        deadInstWindow.pop_front();
+    }
+}
+
+void
 Commit::commitInsts()
 {
     ////////////////////////////////////
@@ -990,7 +1099,74 @@ Commit::commitInsts()
                 stats.committedInstType[tid][head_inst->opClass()]++;
                 ppCommit->notify(head_inst);
 
-                // hardware transactional memory
+                if (trackDeadInsts) {
+                    TrackedInst tInst;
+                    tInst.commitTick = curTick();
+
+                    int srcAddedCount = 0;
+                    int srcExcludedCount = 0;
+                    std::string debugAceValues = "";
+
+                    if (head_inst->numDestRegs() > 0) {
+                        PhysRegIdPtr destReg = head_inst->renamedDestIdx(0);
+
+                        if (!destReg->is(CCRegClass) &&
+                            !destReg->is(MiscRegClass) &&
+                            !destReg->is(InvalidRegClass)) {
+
+                            tInst.destRegs.push_back(destReg);
+                        }
+                    }
+
+                    for (int i = 0; i < head_inst->numSrcRegs(); i++) {
+                        PhysRegIdPtr srcReg = head_inst->renamedSrcIdx(i);
+
+                        if (!srcReg->is(CCRegClass) &&
+                            !srcReg->is(MiscRegClass) &&
+                            !srcReg->is(InvalidRegClass)) {
+
+                            tInst.srcClasses.push_back(srcReg->classValue());
+
+                            int64_t pendingAce = head_inst->
+                            getSrcRegPendingAce(i);
+                            tInst.addedAceValues.push_back(pendingAce);
+
+                            srcAddedCount++;
+                            debugAceValues +=
+                            "Reg[" + std::to_string(i) + "]=
+                            " + std::to_string(pendingAce) + " ";
+                        } else {
+                            srcExcludedCount++;
+                        }
+                    }
+
+                    if (!tInst.destRegs.empty() || !tInst.srcClasses.empty()) {
+                        deadInstWindow.push_back(tInst);
+
+                        if (!tInst.destRegs.empty()) {
+                            PhysRegIdPtr primaryDest = tInst.destRegs.front();
+                            DPRINTF(ACEAnalysis, "[sn:%llu] Pushed to
+                                deadInstWindow at Tick %lu.
+                                DestReg Class: %d, Index: %d
+                                | Src Added: %d, Excluded: %d |
+                                PendingACE: %s\n",
+                                    head_inst->seqNum, tInst.commitTick,
+                                    (int)primaryDest->classValue(),
+                                    primaryDest->index(),
+                                    srcAddedCount, srcExcludedCount,
+                                    debugAceValues.c_str());
+                        } else {
+                            DPRINTF(ACEAnalysis, "[sn:%llu] Pushed to
+                                deadInstWindow
+                                at Tick %lu. DestReg: None | Src Added: %d,
+                                Excluded: %d |
+                                PendingACE: %s\n",
+                                    head_inst->seqNum, tInst.commitTick,
+                                    srcAddedCount, srcExcludedCount,
+                                    debugAceValues.c_str());
+                        }
+                    }
+                }
 
                 // update nesting depth
                 if (head_inst->isHtmStart())
@@ -1104,6 +1280,10 @@ Commit::commitInsts()
 
     if (num_committed == commitWidth) {
         stats.commitEligibleSamples++;
+    }
+
+    if (trackDeadInsts) {
+        evaluateDeadInstWindow();
     }
 }
 
