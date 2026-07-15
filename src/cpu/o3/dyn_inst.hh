@@ -1386,7 +1386,7 @@ class DynInst : public ExecContext, public RefCounted
         }
     }
 
-    int64_t getPendingAceValue(int idx) const {
+    int64_t getSrcRegPendingAce(int idx) const {
         if (idx >= 0 && idx < srcRegPendingAceValues.size()) {
             return srcRegPendingAceValues[idx];
         }
@@ -1429,13 +1429,15 @@ class DynInst : public ExecContext, public RefCounted
             srcRegReadDurations[idx] = durationBeforeRead;
             size_t regBits = reg->regClass().regBytes() * 8;
 
-            if (!(getInstTypeFlags() & (PhysRegId::InstTypeAnd |
-                                        PhysRegId::InstTypeOr |
-                                        PhysRegId::InstTypeShift |
-                                        PhysRegId::InstTypeControl))) {
-                srcRegPendingAceValues[idx] = durationBeforeRead * regBits;
-            } else {
+            if (cpu->isLogicalMaskingEnabled() &&
+                (getInstTypeFlags() & (PhysRegId::InstTypeAnd |
+                                       PhysRegId::InstTypeOr |
+                                       PhysRegId::InstTypeShift |
+                                       PhysRegId::InstTypeControl))) {
+
                 srcRegPendingAceValues[idx] = 0;
+            } else {
+                srcRegPendingAceValues[idx] = durationBeforeRead * regBits;
             }
         }
         return val;
@@ -1462,14 +1464,15 @@ class DynInst : public ExecContext, public RefCounted
 
             size_t regBits = bytes * 8;
 
-            if (!(getInstTypeFlags() & (PhysRegId::InstTypeAnd |
-                                        PhysRegId::InstTypeOr |
-                                        PhysRegId::InstTypeShift |
-                                        PhysRegId::InstTypeControl))) {
+            if (cpu->isLogicalMaskingEnabled() &&
+                (getInstTypeFlags() & (PhysRegId::InstTypeAnd |
+                                       PhysRegId::InstTypeOr |
+                                       PhysRegId::InstTypeShift |
+                                       PhysRegId::InstTypeControl))) {
 
-                srcRegPendingAceValues[idx] = durationBeforeRead * regBits;
-            } else {
                 srcRegPendingAceValues[idx] = 0;
+            } else {
+                srcRegPendingAceValues[idx] = durationBeforeRead * regBits;
             }
         }
     }
